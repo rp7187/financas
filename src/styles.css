@@ -548,7 +548,7 @@ tr:last-child td { border-bottom: 0; }
   /* folhas (campos continuam ≥ 16px) */
   .sheet { padding-left: 14px; padding-right: 14px; gap: 13px; }
   .sheet h2 { font-size: 18px; }
-  .sheet .money-field input { font-size: 30px; min-height: 56px; }
+
   .sheet input:not([type="checkbox"]), .sheet select { font-size: 16px; min-height: 46px; padding: 10px 12px; }
   .btn { min-height: 48px; font-size: 15.5px; }
 }
@@ -589,4 +589,49 @@ tr:last-child td { border-bottom: 0; }
   .head-txt h2 { font-size: 15px; }
   .link { font-size: 13px; }
   .hero-stats .hero-amount { font-size: 30px; }
+}
+
+/* Celular — demais abas e folhas */
+@media (max-width: 520px) {
+  /* valor do lançamento: continua grande (vence a regra genérica dos campos) */
+  .sheet .money-field input:not([type="checkbox"]) { font-size: 28px; min-height: 52px; padding: 6px 0; background: transparent; border: 0; }
+  .money-field { border-radius: 15px; padding: 2px 14px; }
+  .money-field span { font-size: 19px; }
+
+  /* Contas */
+  .page-head .btn.small { min-height: 34px; font-size: 13px; padding: 5px 11px; border-radius: 11px; }
+  .page-head .btn.small svg { width: 16px; height: 16px; }
+  .acc-cards { gap: 10px; }
+  .acc-card { min-height: 84px; padding: 13px 14px; border-radius: 16px; }
+  .acc-card .top { font-size: 14.5px; }
+  .acc-card .kind { font-size: 11px; }
+  .acc-card .bal { font-size: 21px; }
+  .acc-card::after { width: 120px; height: 120px; right: -24px; top: -34px; }
+  .btn.wide { min-height: 44px; font-size: 14.5px; }
+  .btn svg { width: 18px; height: 18px; }
+
+  /* Ajustes */
+  .ios-row { min-height: 46px; padding: 9px 12px; font-size: 14.5px; gap: 10px; }
+  .ios-row .ic { width: 28px; height: 28px; font-size: 15px; border-radius: 9px; }
+  .ios-row .grow small { font-size: 12px; }
+  .ios-row .val { font-size: 14px; }
+  .chips { gap: 6px; }
+  .card .chips .chip { padding: 6px 11px; font-size: 12.5px; }
+  .facts li { font-size: 13.5px; padding: 8px 0; }
+
+  /* Folhas */
+  .sheet { gap: 11px; padding-top: 8px; border-radius: 22px 22px 0 0; }
+  .sheet h2 { font-size: 17px; }
+  .sheet label, .label { font-size: 12px; gap: 5px; }
+  .sheet .chips .chip { padding: 6px 11px; font-size: 13px; }
+  .sheet .chips.cats { gap: 6px; }
+  .sheet label.toggle { font-size: 15px; padding: 8px 12px; border-radius: 12px; }
+  .sheet label.toggle input { width: 46px; height: 28px; }
+  .sheet label.toggle input::after { width: 24px; height: 24px; }
+  .sheet label.toggle input:checked::after { transform: translateX(18px); }
+  .sheet .seg button { padding: 7px 8px; font-size: 13px; }
+  .sheet .actions .btn { min-height: 44px; font-size: 15px; }
+  .color { width: 32px; height: 32px; }
+  .colors, .emojis { gap: 8px; }
+  .emoji-btn { width: 40px; height: 40px; font-size: 20px; }
 }
