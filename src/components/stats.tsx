@@ -3,7 +3,7 @@ import type { ComponentChildren } from "preact";
 import type { Store } from "../app";
 import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
 import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
-import { PROPERTY_KIND, money, moneyCompact, reais, signedMoney } from "../model";
+import { PROPERTY_KIND, colorOf, money, moneyCompact, reais, signedMoney } from "../model";
 import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName } from "./icons";
 
@@ -205,12 +205,13 @@ export function Stats({ store }: { store: Store }) {
           {cats.map((c) => {
             const cat = data.categories.find((x) => x.id === c.categoryId);
             const p = prev.get(c.categoryId) ?? 0;
+            const col = colorOf({ id: c.categoryId, color: cat?.color });
             return (
               <li key={c.categoryId}>
-                <span class={`avatar ${flow}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>
+                <span class={`avatar ${col}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>
                 <div class="rank-main">
                   <div class="rank-top"><span class="name">{cat?.name ?? "Sem categoria"}</span><b class="num">{money(c.amount)}</b></div>
-                  <div class="hbar"><div class={`fill ${flow}`} style={{ width: `${(c.amount / cats[0].amount) * 100}%` }} /></div>
+                  <div class="hbar"><div class={`fill ${col}`} style={{ width: `${(c.amount / cats[0].amount) * 100}%` }} /></div>
                   <div class="rank-meta">
                     <span>{pct(c.amount, totalCat)}%{n > 1 ? ` · ${money(Math.round(c.amount / avgMonths))}/mês` : ""}</span>
                     {p ? <Delta v={c.amount - p} flow={flow} /> : prevTotal ? <span class="delta new">novo</span> : null}
@@ -271,10 +272,10 @@ export function Stats({ store }: { store: Store }) {
           <ul class="rank">
             {propRows.map(({ p, total, first, count }) => (
               <li key={p.id}>
-                <span class="avatar brand" aria-hidden="true">{PROPERTY_KIND[p.kind].emoji}</span>
+                <span class={`avatar ${colorOf(p)}`} aria-hidden="true">{PROPERTY_KIND[p.kind].emoji}</span>
                 <div class="rank-main">
                   <div class="rank-top"><span class="name">{p.name}</span><b class="num">{money(total)}</b></div>
-                  <div class="hbar"><div class="fill brand" style={{ width: `${(total / propMax) * 100}%` }} /></div>
+                  <div class="hbar"><div class={`fill ${colorOf(p)}`} style={{ width: `${(total / propMax) * 100}%` }} /></div>
                   <div class="rank-meta">
                     <span>{!first ? "sem custos no período" : n === 1 ? PROPERTY_KIND[p.kind].label : `média ${money(Math.round(total / count))}/mês${count < n ? ` · desde ${monthShort(first)}` : ""}`}</span>
                   </div>

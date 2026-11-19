@@ -31,6 +31,8 @@ export type Category = Base & {
   type: Flow;
   emoji: string;
   archived?: boolean;
+  /** Cor da categoria ("c1".."c8", paleta validada); ausente = cor automática estável (colorOf). */
+  color?: string;
 };
 
 /** Imóvel: para associar custos (opcional nas despesas). */
@@ -41,6 +43,7 @@ export type Property = Base & {
   kind: PropertyKind;
   note?: string;
   archived?: boolean;
+  color?: string; // "c1".."c8"; ausente = automática
 };
 
 /** Lançamento efetivo (único, parcela, ou mês de um recorrente que foi confirmado/ajustado). */
@@ -109,6 +112,21 @@ export const KIND_LABEL: Record<AccountKind, string> = {
 
 /** Cores para contas (paleta categórica validada). */
 export const ACCOUNT_COLORS = ["#2a78d6", "#eb6834", "#199e70", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+
+/** Paleta categórica (8 cores validadas nos temas claro/escuro, ver styles.css --c1..--c8). */
+export const PALETTE = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"] as const;
+const hash = (s: string) => { let h = 0; for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0; return Math.abs(h); };
+/** Ordem das categorias padrão: espalha as cores entre elas (preenchida por defaults.ts). */
+export const DEFAULT_COLOR_ORDER: string[] = [];
+/**
+ * Cor de uma categoria/imóvel: a escolhida pelo usuário ou uma automática ESTÁVEL (pelo id),
+ * para que a cor acompanhe o item em todos os gráficos — nunca a posição no ranking.
+ */
+export function colorOf(r: { id: string; color?: string }): string {
+  if (r.color && (PALETTE as readonly string[]).includes(r.color)) return r.color;
+  const i = DEFAULT_COLOR_ORDER.indexOf(r.id);
+  return PALETTE[(i >= 0 ? i : hash(r.id)) % PALETTE.length];
+}
 
 export const uid = (): string =>
   typeof crypto !== "undefined" && "randomUUID" in crypto

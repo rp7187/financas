@@ -1,4 +1,4 @@
-import type { Account, Category, Flow } from "./model";
+import { DEFAULT_COLOR_ORDER, type Account, type Category, type Flow } from "./model";
 
 /*
  * Dados iniciais com IDs FIXOS: quando a sincronização chegar (fase 2), os dois aparelhos terão
@@ -31,6 +31,12 @@ const CATS: [string, string, Flow, string][] = [
   ["reembolso", "Reembolso", "income", "↩️"],
   ["outros-r", "Outros", "income", "📦"],
 ];
+
+// Cores automáticas das categorias padrão: em sequência na lista (despesas e receitas separadas,
+// para as mais comuns de cada tipo não repetirem cor).
+DEFAULT_COLOR_ORDER.push(...CATS.filter((c) => c[2] === "expense").map((c) => `cat-${c[0]}`));
+const incomeStart = Math.ceil(DEFAULT_COLOR_ORDER.length / 8) * 8;
+CATS.filter((c) => c[2] === "income").forEach((c, i) => { DEFAULT_COLOR_ORDER[incomeStart + i] = `cat-${c[0]}`; });
 
 /**
  * Versão dos dados iniciais. Ao acrescentar um padrão novo, suba o número: aparelhos que já usam o app

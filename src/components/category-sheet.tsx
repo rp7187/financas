@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
-import { uid, type Category, type Flow } from "../model";
-import { Sheet } from "./sheet";
+import { PALETTE, colorOf, uid, type Category, type Flow } from "../model";
+import { ColorPicker, Sheet } from "./sheet";
 
 const EMOJIS = ["🏠", "💡", "🚿", "📶", "🛒", "🍽️", "🚗", "⛽", "🩺", "💊", "📚", "🍼", "🎉", "📺", "👕", "🧾", "🛡️", "🎁", "🐶", "✈️", "💼", "🏖️", "✨", "📈", "↩️", "💰", "🏋️", "💇", "🔧", "📦"];
 
@@ -10,6 +10,8 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
   const [name, setName] = useState(cat?.name ?? "");
   const [type, setType] = useState<Flow>(target.type);
   const [emoji, setEmoji] = useState(cat?.emoji ?? "📦");
+  // nova categoria: próxima cor da paleta (pela quantidade existente) — fica gravada e não muda com o ranking
+  const [color, setColor] = useState(cat ? colorOf(cat) : PALETTE[store.data.categories.length % PALETTE.length]);
   const [error, setError] = useState<string | null>(null);
   const used = cat ? store.data.txns.some((t) => t.categoryId === cat.id) || store.data.rules.some((r) => r.categoryId === cat.id) : false;
 
@@ -18,7 +20,7 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
     const n = name.trim();
     if (!n) return setError("Informe o nome.");
     if (store.data.categories.some((c) => c.id !== cat?.id && c.type === type && c.name.toLowerCase() === n.toLowerCase())) return setError("Já existe uma categoria com esse nome.");
-    await store.put([{ ...(cat ?? { id: uid(), t: "category", updatedAt: 0 }), name: n, type, emoji } as Category]);
+    await store.put([{ ...(cat ?? { id: uid(), t: "category", updatedAt: 0 }), name: n, type, emoji, color } as Category]);
     onClose();
   }
 
@@ -44,6 +46,7 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
           {EMOJIS.map((e) => <button key={e} type="button" class={`emoji-btn ${emoji === e ? "on" : ""}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>)}
         </div>
       </div>
+      <ColorPicker value={color} onChange={setColor} />
       {cat && used && <p class="muted small">Categorias em uso não são excluídas, só arquivadas (somem da lista de escolha; o histórico continua).</p>}
       {error && <p class="error" role="alert">{error}</p>}
     </Sheet>

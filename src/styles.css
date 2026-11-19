@@ -17,6 +17,7 @@
   --income-text: #0b7a52;
   --expense-text: #c2410c;
   --line: #4f46e5;
+  --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100; --c5: #e87ba4; --c6: #008300; --c7: #6250d6; --c8: #e34948;
   --fixed: #2a78d6;
   --installment: #d55181;
   --variable: #b87800;
@@ -53,6 +54,7 @@
     --income-text: #3fbf8a;
     --expense-text: #f08a5d;
     --line: #8b85f7;
+    --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
     --fixed: #3987e5;
     --installment: #d55181;
     --variable: #c98500;
@@ -635,3 +637,38 @@ tr:last-child td { border-bottom: 0; }
   .colors, .emojis { gap: 8px; }
   .emoji-btn { width: 40px; height: 40px; font-size: 20px; }
 }
+
+/* Cores por categoria/imóvel (paleta validada; a cor acompanha o item, nunca a posição) */
+.fill.c1 { background: var(--c1); }
+.avatar.c1 { background: color-mix(in srgb, var(--c1) 17%, var(--surface)); }
+.swatch.c1 { background: var(--c1); }
+.fill.c2 { background: var(--c2); }
+.avatar.c2 { background: color-mix(in srgb, var(--c2) 17%, var(--surface)); }
+.swatch.c2 { background: var(--c2); }
+.fill.c3 { background: var(--c3); }
+.avatar.c3 { background: color-mix(in srgb, var(--c3) 17%, var(--surface)); }
+.swatch.c3 { background: var(--c3); }
+.fill.c4 { background: var(--c4); }
+.avatar.c4 { background: color-mix(in srgb, var(--c4) 17%, var(--surface)); }
+.swatch.c4 { background: var(--c4); }
+.fill.c5 { background: var(--c5); }
+.avatar.c5 { background: color-mix(in srgb, var(--c5) 17%, var(--surface)); }
+.swatch.c5 { background: var(--c5); }
+.fill.c6 { background: var(--c6); }
+.avatar.c6 { background: color-mix(in srgb, var(--c6) 17%, var(--surface)); }
+.swatch.c6 { background: var(--c6); }
+.fill.c7 { background: var(--c7); }
+.avatar.c7 { background: color-mix(in srgb, var(--c7) 17%, var(--surface)); }
+.swatch.c7 { background: var(--c7); }
+.fill.c8 { background: var(--c8); }
+.avatar.c8 { background: color-mix(in srgb, var(--c8) 17%, var(--surface)); }
+.swatch.c8 { background: var(--c8); }
+.cdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.cdot.c1 { background: var(--c1); }
+.cdot.c2 { background: var(--c2); }
+.cdot.c3 { background: var(--c3); }
+.cdot.c4 { background: var(--c4); }
+.cdot.c5 { background: var(--c5); }
+.cdot.c6 { background: var(--c6); }
+.cdot.c7 { background: var(--c7); }
+.cdot.c8 { background: var(--c8); }

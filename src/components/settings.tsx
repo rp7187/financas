@@ -3,7 +3,7 @@ import type { Store } from "../app";
 import { addMonths, thisMonth } from "../dates";
 import { requestPersist } from "../db";
 import { byProperty, monthItems } from "../engine";
-import { PROPERTY_KIND, isRec, money, type Flow } from "../model";
+import { PROPERTY_KIND, colorOf, isRec, money, type Flow } from "../model";
 import { Icon } from "./icons";
 
 export function Settings({ store }: { store: Store }) {
@@ -63,7 +63,7 @@ export function Settings({ store }: { store: Store }) {
         {props.map((p) => (
           <li key={p.id}>
             <button type="button" class="ios-row" onClick={() => store.openProperty(p)}>
-              <span class="ic">{PROPERTY_KIND[p.kind].emoji}</span>
+              <span class={`ic avatar ${colorOf(p)}`} style={{ cursor: "inherit", margin: 0 }}>{PROPERTY_KIND[p.kind].emoji}</span>
               <span class="grow"><span>{p.name}{p.archived ? " (arquivado)" : ""}</span><small>{PROPERTY_KIND[p.kind].label}{p.note ? ` · ${p.note}` : ""}</small></span>
               <span class="val num">{money(year.get(p.id) ?? 0)}</span>
               <Icon name="chevR" class="chev" />
@@ -89,7 +89,7 @@ export function Settings({ store }: { store: Store }) {
         </div>
         <div class="chips">
           {cats.map((c) => (
-            <button key={c.id} type="button" class={`chip ${c.archived ? "archived" : ""}`} onClick={() => store.openCategory(c)}>{c.emoji} {c.name}</button>
+            <button key={c.id} type="button" class={`chip ${c.archived ? "archived" : ""}`} onClick={() => store.openCategory(c)}><i class={`cdot ${colorOf(c)}`} />{c.emoji} {c.name}</button>
           ))}
           <button type="button" class="chip add" onClick={() => store.openCategory({ type: flow })}>+ nova</button>
         </div>

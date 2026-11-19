@@ -1,12 +1,13 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
-import { PROPERTY_KIND, uid, type Property, type PropertyKind } from "../model";
-import { Sheet } from "./sheet";
+import { PALETTE, PROPERTY_KIND, colorOf, uid, type Property, type PropertyKind } from "../model";
+import { ColorPicker, Sheet } from "./sheet";
 
 export function PropertySheet({ store, property, onClose }: { store: Store; property: Property | null; onClose: () => void }) {
   const [name, setName] = useState(property?.name ?? "");
   const [kind, setKind] = useState<PropertyKind>(property?.kind ?? "apartment");
   const [note, setNote] = useState(property?.note ?? "");
+  const [color, setColor] = useState(property ? colorOf(property) : PALETTE[store.data.properties.length % PALETTE.length]);
   const [error, setError] = useState<string | null>(null);
   const used = property
     ? store.data.txns.some((t) => t.propertyId === property.id) || store.data.rules.some((r) => r.propertyId === property.id) || store.data.plans.some((p) => p.propertyId === property.id)
@@ -17,7 +18,7 @@ export function PropertySheet({ store, property, onClose }: { store: Store; prop
     const n = name.trim();
     if (!n) return setError("Informe um nome (ex.: Apto Centro, Casa da praia).");
     if (store.data.properties.some((p) => p.id !== property?.id && p.name.toLowerCase() === n.toLowerCase())) return setError("Já existe um imóvel com esse nome.");
-    await store.put([{ ...(property ?? { id: uid(), t: "property", updatedAt: 0 }), name: n, kind, note: note.trim() || undefined } as Property]);
+    await store.put([{ ...(property ?? { id: uid(), t: "property", updatedAt: 0 }), name: n, kind, note: note.trim() || undefined, color } as Property]);
     onClose();
   }
 
@@ -42,6 +43,7 @@ export function PropertySheet({ store, property, onClose }: { store: Store; prop
         </div>
       </div>
       <label>Observação (opcional)<input type="text" value={note} placeholder="endereço, matrícula, inquilino…" onInput={(e) => setNote(e.currentTarget.value)} /></label>
+      <ColorPicker value={color} onChange={setColor} />
       {property && used && <p class="muted small">Imóveis com lançamentos não são excluídos, só arquivados (o histórico continua).</p>}
       {error && <p class="error" role="alert">{error}</p>}
     </Sheet>

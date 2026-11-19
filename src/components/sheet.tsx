@@ -46,3 +46,18 @@ export function MoneyInput({ value, onChange, label, autoFocus }: { value: numbe
     </label>
   );
 }
+
+const PALETTE_KEYS = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"];
+/** Escolha de cor da paleta validada (categorias/imóveis). */
+export function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
+  return (
+    <div class="field">
+      <span class="label">Cor nos gráficos</span>
+      <div class="colors">
+        {PALETTE_KEYS.map((c, i) => (
+          <button key={c} type="button" class={`color swatch ${c} ${value === c ? "on" : ""}`} aria-label={`Cor ${i + 1}`} aria-pressed={value === c} onClick={() => onChange(c)} />
+        ))}
+      </div>
+    </div>
+  );
+}

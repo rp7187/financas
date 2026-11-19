@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import type { Store } from "../app";
 import { addMonths, dayLabel, monthLong, thisMonth, todayISO } from "../dates";
 import { balanceByMonth, currentBalance, effect, monthItems, monthTotals, type Item } from "../engine";
-import { money, signedMoney, uid, type Txn } from "../model";
+import { colorOf, money, signedMoney, uid, type Txn } from "../model";
 import { Icon } from "./icons";
 
 type View = "all" | "toPay" | "paid" | "income";
@@ -162,7 +162,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
 
   return (
     <li class={`row ${t.paid ? "" : "pending"}`}>
-      <button type="button" class={`avatar ${t.type} ${t.paid ? "" : "pending"}`} aria-pressed={t.paid}
+      <button type="button" class={`avatar ${t.type === "transfer" ? "transfer" : cat ? colorOf(cat) : t.type} ${t.paid ? "" : "pending"}`} aria-pressed={t.paid}
         aria-label={t.paid ? `${t.description}: marcar como não ${verb}` : `${t.description}: marcar como ${verb}`} onClick={onToggle}>
         {t.type === "transfer" ? <Icon name="swap" /> : <span aria-hidden="true">{cat?.emoji ?? "•"}</span>}
         {t.paid && <span class="badge"><Icon name="check" /></span>}
