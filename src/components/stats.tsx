@@ -1,6 +1,6 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
-import { addMonths, monthLong, monthShort, thisMonth } from "../dates";
+import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
 import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals } from "../engine";
 import { PROPERTY_KIND, money, reais, signedMoney } from "../model";
 import { BalanceChart, IncomeExpenseChart, NATURE_LABEL, NatureChart } from "./charts";
@@ -45,12 +45,22 @@ export function Stats({ store }: { store: Store }) {
   // Imóveis: custo no mês escolhido e nos 12 meses até ele
   const propMonth = byProperty(acc ? items.filter((i) => i.txn.accountId === acc) : items);
   const propYear = new Map<string, number>();
-  for (let i = 0; i < 12; i++) {
-    const its = monthItems(data, addMonths(month, -i));
-    for (const [id, v] of byProperty(acc ? its.filter((x) => x.txn.accountId === acc) : its)) propYear.set(id, (propYear.get(id) ?? 0) + v);
+  const propFirst = new Map<string, string>(); // 1º mês com custo dentro da janela de 12 meses
+  for (let i = 11; i >= 0; i--) {
+    const m = addMonths(month, -i);
+    const its = monthItems(data, m);
+    for (const [id, v] of byProperty(acc ? its.filter((x) => x.txn.accountId === acc) : its)) {
+      propYear.set(id, (propYear.get(id) ?? 0) + v);
+      if (!propFirst.has(id)) propFirst.set(id, m);
+    }
   }
+  // Média só sobre os meses desde o 1º custo (até 12): quem começou a lançar agora não tem a média diluída.
   const propRows = data.properties.filter((p) => propYear.has(p.id) || !p.archived)
-    .map((p) => ({ p, month: propMonth.get(p.id) ?? 0, year: propYear.get(p.id) ?? 0 }))
+    .map((p) => {
+      const first = propFirst.get(p.id);
+      const months = first ? monthDiff(first, month) + 1 : 0;
+      return { p, month: propMonth.get(p.id) ?? 0, year: propYear.get(p.id) ?? 0, first, months };
+    })
     .sort((a, b) => b.year - a.year);
   const propMax = Math.max(1, ...propRows.map((r) => r.year));
 
@@ -147,16 +157,19 @@ export function Stats({ store }: { store: Store }) {
       {data.properties.length > 0 && (
         <section class="card">
           <h2>Custos por imóvel</h2>
-          <p class="muted small" style={{ marginTop: "-6px" }}>{monthLong(month)} e os 12 meses até ele (despesas associadas ao imóvel).</p>
+          <p class="muted small" style={{ marginTop: "-6px" }}>{monthLong(month)} · total e média mensal nos 12 meses até ele (a média conta só os meses desde o 1º custo).</p>
           <ul class="cat-bars">
-            {propRows.map(({ p, month: m, year }) => (
+            {propRows.map(({ p, month: m, year, first, months }) => (
               <li key={p.id}>
                 <div class="cat-line">
                   <span class="name"><span class="em">{PROPERTY_KIND[p.kind].emoji}</span>{p.name}</span>
                   <b class="num">{money(m)}</b>
                 </div>
                 <div class="hbar"><div class="fill brand" style={{ width: `${(year / propMax) * 100}%` }} /></div>
-                <small class="muted">12 meses: {money(year)} · média {money(Math.round(year / 12))}/mês</small>
+                <small class="muted">
+                  {!first ? "sem custos nos últimos 12 meses"
+                    : `${months >= 12 ? "12 meses" : `Desde ${monthShort(first)} (${months} ${months === 1 ? "mês" : "meses"})`}: ${money(year)} · média ${money(Math.round(year / months))}/mês`}
+                </small>
               </li>
             ))}
           </ul>
