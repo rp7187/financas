@@ -34,7 +34,7 @@ export type Category = Base & {
 };
 
 /** Imóvel: para associar custos (opcional nas despesas). */
-export type PropertyKind = "apartment" | "house" | "land" | "commercial" | "other";
+export type PropertyKind = "apartment" | "house" | "beach" | "farm" | "land" | "commercial" | "other";
 export type Property = Base & {
   t: "property";
   name: string;
@@ -93,6 +93,8 @@ export type Rec = Account | Category | Txn | Rule | Plan | Property;
 export const PROPERTY_KIND: Record<PropertyKind, { label: string; emoji: string }> = {
   apartment: { label: "Apartamento", emoji: "🏢" },
   house: { label: "Casa", emoji: "🏡" },
+  beach: { label: "Praia", emoji: "🏖️" },
+  farm: { label: "Sítio", emoji: "🌾" },
   land: { label: "Terreno", emoji: "🌳" },
   commercial: { label: "Comercial", emoji: "🏬" },
   other: { label: "Outro", emoji: "📍" },
