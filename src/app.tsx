@@ -40,6 +40,34 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "settings", label: "Ajustes", icon: "sliders" },
 ];
 
+/**
+ * Acrescenta os padrões que faltam (por id). Excluídos de propósito não voltam.
+ * Se o usuário já tem uma categoria com o mesmo nome e tipo de um padrão, ela é SUBSTITUÍDA pelo padrão:
+ * lançamentos, recorrentes e parcelamentos passam a apontar para o id fixo e a antiga é excluída
+ * (ids fixos evitam duplicatas quando a sincronização entre aparelhos chegar).
+ */
+async function applyDefaults(rs: Rec[]): Promise<Rec[]> {
+  const now = Date.now();
+  const have = new Set(rs.map((r) => r.id)); // inclui excluídos
+  const changes: Rec[] = [];
+  for (const d of defaultRecords(now)) {
+    if (have.has(d.id)) continue;
+    changes.push(d);
+    if (d.t !== "category") continue;
+    const dup = rs.find((r): r is Category => r.t === "category" && !r.deleted && r.type === d.type && r.name.trim().toLowerCase() === d.name.toLowerCase());
+    if (!dup) continue;
+    for (const r of rs) {
+      if ((r.t === "txn" || r.t === "rule" || r.t === "plan") && r.categoryId === dup.id) changes.push({ ...r, categoryId: d.id, updatedAt: now });
+    }
+    changes.push({ ...dup, deleted: true, updatedAt: now });
+  }
+  if (!changes.length) return rs;
+  await db.putMany(changes);
+  const map = new Map(rs.map((r) => [r.id, r]));
+  for (const c of changes) map.set(c.id, c);
+  return [...map.values()];
+}
+
 export function App() {
   const [records, setRecords] = useState<Rec[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,13 +86,8 @@ export function App() {
       const seeded = await db.getMeta<boolean | number>("seeded");
       const version = seeded === true ? 1 : typeof seeded === "number" ? seeded : 0;
       if (version < DEFAULTS_VERSION) {
-        const have = new Set(rs.map((r) => r.id)); // inclui excluídos: padrão apagado de propósito não volta
-        // …nem categoria que o usuário já criou com o mesmo nome e tipo
-        const named = new Set(rs.filter((r) => r.t === "category" && !r.deleted).map((r) => r.t === "category" ? `${r.type}|${r.name.toLowerCase()}` : ""));
-        const seed = defaultRecords(Date.now()).filter((r) => !have.has(r.id) && !(r.t === "category" && named.has(`${r.type}|${r.name.toLowerCase()}`)));
-        if (seed.length) await db.putMany(seed);
+        rs = await applyDefaults(rs);
         await db.setMeta("seeded", DEFAULTS_VERSION);
-        rs = [...rs, ...seed];
       }
       setRecords(rs);
     })().catch((e) => setError(String(e)));

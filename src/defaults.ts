@@ -36,7 +36,7 @@ const CATS: [string, string, Flow, string][] = [
  * Versão dos dados iniciais. Ao acrescentar um padrão novo, suba o número: aparelhos que já usam o app
  * recebem só o que falta (por id — um padrão excluído pelo usuário tem marca de exclusão e não volta).
  */
-export const DEFAULTS_VERSION = 2;
+export const DEFAULTS_VERSION = 3; // 3: categoria do usuário com mesmo nome de um padrão é substituída pelo padrão
 
 export function defaultRecords(now: number): (Category | Account)[] {
   return [
