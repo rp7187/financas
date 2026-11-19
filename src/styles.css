@@ -365,3 +365,18 @@ tr:last-child td { border-bottom: 0; }
 .nature-rows .vals small { color: var(--muted); font-size: 12px; }
 .insight { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 14px; color: var(--text-2); line-height: 1.4; }
 .insight b { color: var(--text); }
+
+/* Período das análises */
+.period .mini-nav { margin: 12px 0 4px; }
+.period .seg button { padding: 8px 4px; white-space: nowrap; }
+.period-label { display: flex; flex-direction: column; align-items: center; gap: 1px; text-align: center; }
+.period-label b { font-size: 17px; }
+.period-label small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.quick { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin: 6px 0 2px; }
+.quick .chip { box-shadow: none; background: var(--surface-2); padding: 7px 12px; font-size: 13px; }
+.quick .chip.on { background: var(--primary); color: var(--on-primary); }
+.period-sum { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.period-sum div { background: var(--surface-2); border-radius: 16px; padding: 11px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.period-sum span { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.period-sum b { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.period-sum small { font-size: 11.5px; color: var(--muted); min-height: 14px; }
