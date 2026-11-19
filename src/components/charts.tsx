@@ -21,101 +21,6 @@ const barPath = (x: number, w: number, base: number, h: number) => {
   return `M${x},${base}V${base - h + r}Q${x},${base - h} ${x + r},${base - h}H${x + w - r}Q${x + w},${base - h} ${x + w},${base - h + r}V${base}Z`;
 };
 
-/** Receitas × despesas por mês (barras lado a lado, um eixo só). */
-export function IncomeExpenseChart({ rows, current }: { rows: { month: string; income: number; expense: number }[]; current: string }) {
-  const [sel, setSel] = useState<number | null>(null);
-  const W = 340, H = 170, left = 36, top = 10, bottom = 20;
-  const max = niceMax(Math.max(...rows.flatMap((r) => [r.income, r.expense])));
-  const slot = (W - left) / rows.length;
-  const bw = Math.max(3, Math.min(12, (slot - 4) / 2 - 1));
-  const base = H - bottom;
-  const y = (v: number) => (v / max) * (base - top);
-  const s = sel !== null ? rows[sel] : null;
-  return (
-    <figure class="chart">
-      <div class="legend"><span><i class="sw income" />Receitas</span><span><i class="sw expense" />Despesas</span></div>
-      <p class="chart-detail" aria-live="polite">
-        {s ? <>{monthLong(s.month)}: <b class="income">{money(s.income)}</b> · <b class="expense">{money(s.expense)}</b> · resultado {money(s.income - s.expense)}</> : "Toque num mês para ver os valores."}
-      </p>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={rows.map((r) => `${monthShort(r.month)}: receitas ${money(r.income)}, despesas ${money(r.expense)}`).join("; ")}>
-        {[0, 0.5, 1].map((f) => (
-          <g key={f}>
-            <line x1={left} x2={W} y1={base - f * (base - top)} y2={base - f * (base - top)} class="grid" />
-            <text x={left - 6} y={base - f * (base - top) + 3.5} class="tick" text-anchor="end">{moneyShort(max * f)}</text>
-          </g>
-        ))}
-        {rows.map((r, i) => {
-          const x = left + i * slot + (slot - (2 * bw + 2)) / 2;
-          return (
-            <g key={r.month} class="hit" onClick={() => setSel(sel === i ? null : i)}>
-              <rect x={left + i * slot} y={0} width={slot} height={H} fill="transparent" />
-              <path d={barPath(x, bw, base, y(r.income))} class={`bar income ${sel === i ? "sel" : ""}`} />
-              <path d={barPath(x + bw + 2, bw, base, y(r.expense))} class={`bar expense ${sel === i ? "sel" : ""}`} />
-              {(i % 2 === rows.length % 2 || rows.length <= 6) && (
-                <text x={left + i * slot + slot / 2} y={H - 5} class={`tick ${r.month === current ? "now" : ""}`} text-anchor="middle">{monthShort(r.month).slice(0, 3)}</text>
-              )}
-            </g>
-          );
-        })}
-      </svg>
-    </figure>
-  );
-}
-
-/** Saldo no fim de cada mês; meses futuros tracejados (projeção). */
-export function BalanceChart({ rows, current }: { rows: { month: string; balance: number }[]; current: string }) {
-  const [sel, setSel] = useState<number | null>(null);
-  const W = 340, H = 170, left = 40, right = 8, top = 12, bottom = 20;
-  const vals = rows.map((r) => r.balance);
-  let lo = Math.min(0, ...vals), hi = Math.max(...vals);
-  if (hi === lo) hi = lo + 100;
-  const pad = (hi - lo) * 0.08;
-  lo -= lo < 0 ? pad : 0; hi += pad;
-  const X = (i: number) => left + (i / Math.max(1, rows.length - 1)) * (W - left - right);
-  const Y = (v: number) => top + (1 - (v - lo) / (hi - lo)) * (H - top - bottom);
-  const ci = rows.findIndex((r) => r.month === current);
-  const path = (from: number, to: number) => rows.slice(from, to + 1).map((r, k) => `${k ? "L" : "M"}${X(from + k).toFixed(1)},${Y(r.balance).toFixed(1)}`).join("");
-  const past = ci >= 0 ? path(0, ci) : path(0, rows.length - 1);
-  const future = ci >= 0 && ci < rows.length - 1 ? path(ci, rows.length - 1) : "";
-  const s = sel !== null ? rows[sel] : null;
-  const ticks = [lo, (lo + hi) / 2, hi];
-  return (
-    <figure class="chart">
-      <p class="chart-detail" aria-live="polite">
-        {s ? <>{monthLong(s.month)}: <b>{money(s.balance)}</b>{s.month > current ? " (previsto)" : ""}</> : "Toque num mês. Linha tracejada = previsão."}
-      </p>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={rows.map((r) => `${monthShort(r.month)}: ${money(r.balance)}`).join("; ")}>
-        {ticks.map((t, i) => (
-          <g key={i}>
-            <line x1={left} x2={W - right} y1={Y(t)} y2={Y(t)} class="grid" />
-            <text x={left - 6} y={Y(t) + 3.5} class="tick" text-anchor="end">{moneyShort(t)}</text>
-          </g>
-        ))}
-        <defs>
-          <linearGradient id="balance-fill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stop-color="var(--line)" stop-opacity="0.22" />
-            <stop offset="100%" stop-color="var(--line)" stop-opacity="0" />
-          </linearGradient>
-        </defs>
-        {rows.length > 1 && <path d={`${path(0, rows.length - 1)}L${X(rows.length - 1)},${Y(Math.max(lo, 0))}L${X(0)},${Y(Math.max(lo, 0))}Z`} class="area" />}
-        {lo < 0 && <line x1={left} x2={W - right} y1={Y(0)} y2={Y(0)} class="zero" />}
-        {ci >= 0 && <line x1={X(ci)} x2={X(ci)} y1={top} y2={H - bottom} class="today" />}
-        <path d={past} class="line" />
-        {future && <path d={future} class="line future" />}
-        {rows.map((r, i) => (
-          <g key={r.month} class="hit" onClick={() => setSel(sel === i ? null : i)}>
-            <rect x={X(i) - (W - left) / rows.length / 2} y={0} width={(W - left) / rows.length} height={H} fill="transparent" />
-            <circle cx={X(i)} cy={Y(r.balance)} r={sel === i ? 5 : i === ci ? 4 : 2.5} class={`pt ${r.month > current ? "future" : ""} ${sel === i ? "sel" : ""}`} />
-          </g>
-        ))}
-        {[0, ci >= 0 ? ci : -1, rows.length - 1].filter((v, i, a) => v >= 0 && a.indexOf(v) === i).map((i) => (
-          <text key={`x${i}`} x={X(i)} y={H - 5} class={`tick ${i === ci ? "now" : ""}`} text-anchor={i === 0 ? "start" : i === rows.length - 1 ? "end" : "middle"}>{monthShort(rows[i].month)}</text>
-        ))}
-      </svg>
-    </figure>
-  );
-}
-
 export type NatureRow = { month: string; fixed: number; installment: number; variable: number };
 const NATURE_ORDER = ["fixed", "installment", "variable"] as const;
 export const NATURE_LABEL = { fixed: "Fixas", installment: "Parceladas", variable: "Variáveis" } as const;
@@ -166,6 +71,115 @@ export function NatureChart({ rows, current }: { rows: NatureRow[]; current: str
           );
         })}
       </svg>
+    </figure>
+  );
+}
+
+export type FlowRow = { month: string; income: number; expense: number; balance: number };
+
+/** Escala com ~3 marcas "redondas" cobrindo [lo, hi]. */
+function niceRange(lo: number, hi: number): number[] {
+  if (hi === lo) { hi = lo + 100_00; }
+  const span = hi - lo;
+  const raw = span / 3;
+  const p = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map((m) => m * p).find((s) => s >= raw) ?? 10 * p;
+  const out: number[] = [];
+  for (let v = Math.floor(lo / step) * step; v <= Math.ceil(hi / step) * step + 1e-6; v += step) out.push(v);
+  return out;
+}
+
+/**
+ * Fluxo do mês (receitas × despesas, barras) e saldo no fim do mês (linha), em dois painéis
+ * alinhados pelo mesmo eixo de meses — sem eixo duplo. Toque num mês destaca a coluna nos dois.
+ */
+export function FlowBalanceChart({ rows, current }: { rows: FlowRow[]; current: string }) {
+  const initial = Math.max(0, rows.findIndex((r) => r.month === current));
+  const [sel, setSel] = useState<number>(rows.some((r) => r.month === current) ? initial : rows.length - 1);
+  const s = rows[Math.min(sel, rows.length - 1)];
+  const W = 340, left = 40, right = 8;
+  const top1 = 30, h1 = 104, gapY = 46, h2 = 92, bottomPad = 20;
+  const top2 = top1 + h1 + gapY;
+  const H = top2 + h2 + bottomPad;
+  const slot = (W - left - right) / rows.length;
+  const cx = (i: number) => left + i * slot + slot / 2;
+  const bw = Math.max(3, Math.min(14, (slot - 6) / 2 - 1));
+
+  // painel 1: barras a partir de zero
+  const max1 = niceMax(Math.max(...rows.flatMap((r) => [r.income, r.expense])));
+  const base1 = top1 + h1;
+  const y1 = (v: number) => (v / max1) * h1;
+  // painel 2: saldo (escala própria, ajustada aos valores)
+  const bal = rows.map((r) => r.balance);
+  const ticks2 = niceRange(Math.min(...bal), Math.max(...bal)); // escala ajustada aos saldos (painel próprio, sem eixo duplo)
+  const lo2 = ticks2[0], hi2 = ticks2[ticks2.length - 1];
+  const Y2 = (v: number) => top2 + (1 - (v - lo2) / (hi2 - lo2 || 1)) * h2;
+  const ci = rows.findIndex((r) => r.month === current);
+  const path = (from: number, to: number) => rows.slice(from, to + 1).map((r, k) => `${k ? "L" : "M"}${cx(from + k).toFixed(1)},${Y2(r.balance).toFixed(1)}`).join("");
+  const lastPast = ci >= 0 ? ci : rows[0].month > current ? -1 : rows.length - 1;
+  const past = lastPast >= 0 ? path(0, lastPast) : "";
+  const future = lastPast < rows.length - 1 ? path(Math.max(0, lastPast), rows.length - 1) : "";
+  const net = s.income - s.expense;
+
+  return (
+    <figure class="chart flow">
+      <div class="flow-detail" aria-live="polite">
+        <span class="fd-month">{monthLong(s.month)}{s.month > current ? " · previsto" : s.month === current ? " · em andamento" : ""}</span>
+        <div class="fd-grid">
+          <span><i class="sw income" />Receitas<b class="num">{money(s.income)}</b></span>
+          <span><i class="sw expense" />Despesas<b class="num">{money(s.expense)}</b></span>
+          <span>Resultado<b class={`num ${net < 0 ? "expense" : "income"}`}>{net >= 0 ? "+" : "−"}{money(Math.abs(net))}</b></span>
+          <span><i class="sw line" />Saldo no fim<b class="num">{money(s.balance)}</b></span>
+        </div>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img"
+        aria-label={rows.map((r) => `${monthShort(r.month)}: receitas ${money(r.income)}, despesas ${money(r.expense)}, saldo no fim ${money(r.balance)}`).join("; ")}>
+        {/* coluna selecionada */}
+        <rect x={left + sel * slot + 1} y={top1 - 8} width={slot - 2} height={H - bottomPad - top1 + 8} rx={8} class="sel-band" />
+
+        {/* painel 1 */}
+        <text x={4} y={top1 - 16} class="panel-title">Receitas × despesas</text>
+        {[0, 0.5, 1].map((f) => (
+          <g key={`a${f}`}>
+            <line x1={left} x2={W - right} y1={base1 - f * h1} y2={base1 - f * h1} class="grid" />
+            <text x={left - 6} y={base1 - f * h1 + 3.5} class="tick" text-anchor="end">{moneyShort(max1 * f)}</text>
+          </g>
+        ))}
+        {rows.map((r, i) => (
+          <g key={`b${r.month}`}>
+            <path d={barPath(cx(i) - bw - 1, bw, base1, y1(r.income))} class={`bar income ${r.month > current ? "future" : ""}`} />
+            <path d={barPath(cx(i) + 1, bw, base1, y1(r.expense))} class={`bar expense ${r.month > current ? "future" : ""}`} />
+          </g>
+        ))}
+
+        {/* painel 2 */}
+        <text x={4} y={top2 - 20} class="panel-title">Saldo no fim do mês</text>
+        {ticks2.map((t, i) => (
+          <g key={`c${i}`}>
+            <line x1={left} x2={W - right} y1={Y2(t)} y2={Y2(t)} class={t === 0 ? "zero" : "grid"} />
+            <text x={left - 6} y={Y2(t) + 3.5} class="tick" text-anchor="end">{moneyShort(t)}</text>
+          </g>
+        ))}
+        {past && <path d={past} class="line" />}
+        {future && <path d={future} class="line future" />}
+        {rows.map((r, i) => (
+          <circle key={`p${r.month}`} cx={cx(i)} cy={Y2(r.balance)} r={i === sel ? 5.5 : 3.5} class={`pt ${r.month > current ? "future" : ""} ${i === sel ? "sel" : ""}`} />
+        ))}
+
+        {/* eixo de meses + áreas de toque */}
+        {rows.map((r, i) => (
+          <g key={`x${r.month}`} class="hit" onClick={() => setSel(i)}>
+            <rect x={left + i * slot} y={0} width={slot} height={H} fill="transparent" />
+            {(rows.length <= 6 || i % 2 === (rows.length - 1) % 2) && (
+              <text x={cx(i)} y={H - 5} class={`tick ${r.month === current ? "now" : ""} ${i === sel ? "selx" : ""}`} text-anchor="middle">{monthShort(r.month).slice(0, 3)}</text>
+            )}
+          </g>
+        ))}
+      </svg>
+      <div class="legend flow-legend">
+        <span><i class="sw income" />Receitas</span><span><i class="sw expense" />Despesas</span>
+        <span><i class="sw line" />Saldo</span><span class="muted">claro/tracejado = previsto</span>
+      </div>
     </figure>
   );
 }

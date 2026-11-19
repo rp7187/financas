@@ -4,7 +4,7 @@ import type { Store } from "../app";
 import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
 import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
 import { PROPERTY_KIND, money, moneyCompact, reais, signedMoney } from "../model";
-import { BalanceChart, IncomeExpenseChart, NATURE_LABEL, NatureChart } from "./charts";
+import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName } from "./icons";
 
 /** Duração do período analisado, em meses. */
@@ -94,6 +94,10 @@ export function Stats({ store }: { store: Store }) {
     return { month: m, income: t.income, expense: t.expense, committed: nt.fixed + nt.installment };
   });
   const balance = balanceByMonth(data, chartMonths[0], chartMonths[chartMonths.length - 1], acc);
+  const flowRows = perMonth.map((r, i) => ({ ...r, balance: balance[i].balance }));
+  // Saldo no início (fim do mês anterior ao período) e no fim do período
+  const [balStart, ...balRest] = balanceByMonth(data, addMonths(start, -1), end, acc);
+  const balEnd = balRest[balRest.length - 1] ?? balStart;
 
   // Imóveis: total no período; média só sobre os meses desde o 1º custo dentro do período
   const propTotal = new Map<string, number>();
@@ -281,28 +285,29 @@ export function Stats({ store }: { store: Store }) {
         </section>
       )}
 
-      {/* ---------- Receitas × despesas ---------- */}
+      {/* ---------- Fluxo e saldo ---------- */}
       <section class="card">
-        <CardHead icon="bars" tone="brand" title="Receitas × despesas" sub={n === 1 ? `6 meses até ${monthShort(start)}` : label}
+        <CardHead icon="trend" tone="brand" title="Fluxo e saldo" sub={n === 1 ? `6 meses até ${monthShort(start)}` : label}
           right={<button type="button" class="link" onClick={() => setTable(!table)}>{table ? "ocultar tabela" : "ver tabela"}</button>} />
-        <IncomeExpenseChart rows={perMonth} current={cur} />
+        <div class="bal-sum">
+          <div><span>Saldo em {monthShort(addMonths(start, -1))}</span><b class="num">{money(balStart.balance)}</b></div>
+          <Icon name="chevR" class="bal-arrow" />
+          <div><span>Saldo em {monthShort(end)}{end > cur ? " (previsto)" : ""}</span><b class="num">{money(balEnd.balance)}</b></div>
+          <span class={`delta ${balEnd.balance - balStart.balance >= 0 ? "good" : "bad"}`}>{balEnd.balance - balStart.balance >= 0 ? "▲" : "▼"} {money(Math.abs(balEnd.balance - balStart.balance))}</span>
+        </div>
+        <FlowBalanceChart key={chartMonths[0] + n} rows={flowRows} current={cur} />
         {table && (
           <div class="table-wrap">
             <table>
-              <thead><tr><th>R$</th><th>Receitas</th><th>Despesas</th><th>Fixas*</th><th>Saldo</th></tr></thead>
-              <tbody>{perMonth.map((r) => (
-                <tr key={r.month}><td>{monthShort(r.month)}{r.month > cur ? "°" : ""}</td><td>{reais(r.income)}</td><td>{reais(r.expense)}</td><td>{reais(r.committed)}</td><td class={r.income - r.expense < 0 ? "expense" : ""}>{reais(r.income - r.expense)}</td></tr>
+              <thead><tr><th>R$</th><th>Receitas</th><th>Despesas</th><th>Result.</th><th>Saldo fim</th></tr></thead>
+              <tbody>{flowRows.map((r) => (
+                <tr key={r.month}><td>{monthShort(r.month)}{r.month > cur ? "°" : ""}</td><td>{reais(r.income)}</td><td>{reais(r.expense)}</td>
+                  <td class={r.income - r.expense < 0 ? "expense" : ""}>{reais(r.income - r.expense)}</td><td>{reais(r.balance)}</td></tr>
               ))}</tbody>
             </table>
-            <p class="muted small">*Fixas + parceladas (já comprometido). ° meses futuros (previsto).</p>
+            <p class="muted small">° meses futuros (previsto: recorrentes, parcelas e pendentes).</p>
           </div>
         )}
-      </section>
-
-      {/* ---------- Saldo ---------- */}
-      <section class="card">
-        <CardHead icon="trend" tone="brand" title="Saldo no fim do mês" sub={`${n === 1 ? `6 meses até ${monthShort(start)}` : label} · tracejado = previsão`} />
-        <BalanceChart rows={balance} current={cur} />
       </section>
     </>
   );
