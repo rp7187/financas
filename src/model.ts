@@ -118,6 +118,9 @@ export const uid = (): string =>
 const brl = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 /** 123456 → "R$ 1.234,56" */
 export const money = (cents: number) => brl.format(cents / 100);
+/** Para espaços pequenos: sem centavos a partir de R$ 1.000 ("R$ 10.500") */
+export const moneyCompact = (cents: number) =>
+  Math.abs(cents) >= 100_000 ? `${cents < 0 ? "-" : ""}R$ ${Math.round(Math.abs(cents) / 100).toLocaleString("pt-BR")}` : brl.format(cents / 100);
 /** Com sinal explícito: "+R$ 10,00" / "−R$ 10,00" */
 export const signedMoney = (cents: number) => `${cents > 0 ? "+" : cents < 0 ? "−" : ""}${brl.format(Math.abs(cents) / 100)}`;
 /** Tabelas: reais sem centavos e sem "R$" (a coluna informa) — "8.000", "−3.100" */

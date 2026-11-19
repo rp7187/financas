@@ -1,10 +1,11 @@
 import { useState } from "preact/hooks";
+import type { ComponentChildren } from "preact";
 import type { Store } from "../app";
 import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
 import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
-import { PROPERTY_KIND, money, reais, signedMoney } from "../model";
+import { PROPERTY_KIND, money, moneyCompact, reais, signedMoney } from "../model";
 import { BalanceChart, IncomeExpenseChart, NATURE_LABEL, NatureChart } from "./charts";
-import { Icon } from "./icons";
+import { Icon, type IconName } from "./icons";
 
 /** Duração do período analisado, em meses. */
 const LENGTHS = [
@@ -113,37 +114,66 @@ export function Stats({ store }: { store: Store }) {
 
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
   const vsPrev = (v: number, p: number) => (p ? `${signedMoney(v - p)} vs ${prevLabel}` : "");
+  const ratio = tot.income > 0 ? tot.expense / tot.income : tot.expense > 0 ? 1.01 : 0;
+  const hasPrev = prevTot.income + prevTot.expense > 0;
 
   return (
     <>
       <header class="page-head"><h1>Análises</h1></header>
 
-      <section class="card period">
-        <div class="seg wide" role="group" aria-label="Duração do período">
+      {/* ---------- Período (cartão de destaque) ---------- */}
+      <section class="hero hero-stats">
+        <div class="glass-seg" role="group" aria-label="Duração do período">
           {LENGTHS.map((l) => (
             <button key={l.n} type="button" class={n === l.n ? "on" : ""} aria-pressed={n === l.n}
               onClick={() => setPeriod({ n: l.n, start: startFor(modeOf(start, n) ?? "current", l.n) })}>{l.label}</button>
           ))}
         </div>
-        <div class="mini-nav">
-          <button type="button" class="icon-btn" aria-label="Período anterior" onClick={() => setPeriod({ n, start: addMonths(start, -n) })}><Icon name="chevL" /></button>
-          <span class="period-label"><b>{label}</b><small>{when}</small></span>
-          <button type="button" class="icon-btn" aria-label="Próximo período" onClick={() => setPeriod({ n, start: addMonths(start, n) })}><Icon name="chevR" /></button>
+        <div class="hero-nav">
+          <button type="button" class="glass-btn" aria-label="Período anterior" onClick={() => setPeriod({ n, start: addMonths(start, -n) })}><Icon name="chevL" /></button>
+          <div>
+            <h1>{label}</h1>
+            <span class="hero-when">{when}</span>
+          </div>
+          <button type="button" class="glass-btn" aria-label="Próximo período" onClick={() => setPeriod({ n, start: addMonths(start, n) })}><Icon name="chevR" /></button>
         </div>
-        <div class="quick" role="group" aria-label="Atalhos de período">
+        <div class="glass-chips" role="group" aria-label="Atalhos de período">
           {(["past", "current", "future"] as const).map((m) => (
-            <button key={m} type="button" class={`chip ${modeOf(start, n) === m ? "on" : ""}`} aria-pressed={modeOf(start, n) === m}
+            <button key={m} type="button" class={modeOf(start, n) === m ? "on" : ""} aria-pressed={modeOf(start, n) === m}
               onClick={() => setPeriod({ n, start: startFor(m, n) })}>{MODE_LABEL[m](n)}</button>
           ))}
         </div>
-        <div class="period-sum">
-          <div><span>Receitas</span><b class="num income">{money(tot.income)}</b><small>{vsPrev(tot.income, prevTot.income)}</small></div>
-          <div><span>Despesas</span><b class="num expense">{money(tot.expense)}</b><small>{vsPrev(tot.expense, prevTot.expense)}</small></div>
-          <div><span>Resultado</span><b class={`num ${result < 0 ? "expense" : ""}`}>{money(result)}</b><small>{tot.income ? `${pct(result, tot.income)}% das receitas` : ""}</small></div>
-          {n === 1
-            ? <div><span>Falta pagar</span><b class="num">{money(tot.expense - tot.expensePaid)}</b><small>{tot.expense === tot.expensePaid ? (tot.expense ? "tudo pago" : "") : `pago ${money(tot.expensePaid)}`}</small></div>
-            : <div><span>Despesa média</span><b class="num">{money(Math.round(tot.expense / avgMonths))}</b><small>por mês{avgNote}</small></div>}
+
+        <p class="hero-label">Resultado do período</p>
+        <div class="hero-amount num">{money(result)}</div>
+        <div class="hero-sub">
+          {tot.income ? <><b>{pct(result, tot.income)}%</b> das receitas {result >= 0 ? "sobram" : "faltam"}</> : "sem receitas no período"}
+          {hasPrev && <> · {signedMoney(result - (prevTot.income - prevTot.expense))} vs {prevLabel}</>}
         </div>
+        <div class="hero-tiles">
+          <div class="tile">
+            <span class="tile-head"><span class="tile-icon in"><Icon name="down" /></span>Receitas</span>
+            <b class="num">{money(tot.income)}</b>
+            <small>{vsPrev(tot.income, prevTot.income) || " "}</small>
+          </div>
+          <div class="tile">
+            <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Despesas</span>
+            <b class="num">{money(tot.expense)}</b>
+            <small>{vsPrev(tot.expense, prevTot.expense) || " "}</small>
+          </div>
+        </div>
+        {(tot.income > 0 || tot.expense > 0) && (
+          <div class="spend">
+            <div class={`spend-bar ratio ${ratio > 1 ? "over" : ""}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100}
+              aria-label="Despesas em relação às receitas"><div style={{ width: `${Math.min(1, ratio) * 100}%` }} /></div>
+            <div class="spend-text">
+              <span>{tot.income > 0 ? `despesas = ${Math.round(ratio * 100)}% das receitas` : "sem receitas"}</span>
+              {n === 1
+                ? <span>falta pagar <b class="num">{money(tot.expense - tot.expensePaid)}</b></span>
+                : <span>média <b class="num">{money(Math.round(tot.expense / avgMonths))}</b>/mês{avgNote}</span>}
+            </div>
+          </div>
+        )}
       </section>
 
       {data.accounts.filter((a) => !a.archived).length > 1 && (
@@ -155,63 +185,69 @@ export function Stats({ store }: { store: Store }) {
         </div>
       )}
 
+      {/* ---------- Por categoria ---------- */}
       <section class="card">
-        <div class="card-title">
-          <h2>Por categoria</h2>
-          <div class="seg small" role="group" aria-label="Tipo">
-            <button type="button" class={flow === "expense" ? "on" : ""} onClick={() => setFlow("expense")}>Despesas</button>
-            <button type="button" class={flow === "income" ? "on" : ""} onClick={() => setFlow("income")}>Receitas</button>
-          </div>
+        <CardHead icon="tag" tone={flow} title="Por categoria" sub={flow === "expense" ? "Onde o dinheiro foi" : "De onde o dinheiro veio"} />
+        <div class="seg wide" role="group" aria-label="Tipo" style={{ marginBottom: "14px" }}>
+          <button type="button" class={flow === "expense" ? "on" : ""} onClick={() => setFlow("expense")}>Despesas</button>
+          <button type="button" class={flow === "income" ? "on" : ""} onClick={() => setFlow("income")}>Receitas</button>
         </div>
-        <div class="big-total num">{money(totalCat)}</div>
-        <p class="muted small" style={{ margin: 0 }}>{prevTotal ? `${signedMoney(totalCat - prevTotal)} vs ${n === 1 ? prevLabel : "período anterior"}` : `sem dados ${n === 1 ? `em ${prevLabel}` : "no período anterior"}`}</p>
-        {!cats.length && <p class="muted">Nada no período.</p>}
-        <ul class="cat-bars">
+        <div class="total-line">
+          <b class="big-total num">{money(totalCat)}</b>
+          {prevTotal > 0 && <Delta v={totalCat - prevTotal} flow={flow} suffix={` vs ${n === 1 ? prevLabel : "anterior"}`} />}
+        </div>
+        {!cats.length && <p class="muted small">Nada no período.</p>}
+        <ul class="rank">
           {cats.map((c) => {
             const cat = data.categories.find((x) => x.id === c.categoryId);
             const p = prev.get(c.categoryId) ?? 0;
             return (
               <li key={c.categoryId}>
-                <div class="cat-line">
-                  <span class="name"><span class="em">{cat?.emoji ?? "•"}</span>{cat?.name ?? "Sem categoria"}</span>
-                  <b class="num">{money(c.amount)}</b>
+                <span class={`avatar ${flow}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>
+                <div class="rank-main">
+                  <div class="rank-top"><span class="name">{cat?.name ?? "Sem categoria"}</span><b class="num">{money(c.amount)}</b></div>
+                  <div class="hbar"><div class={`fill ${flow}`} style={{ width: `${(c.amount / cats[0].amount) * 100}%` }} /></div>
+                  <div class="rank-meta">
+                    <span>{pct(c.amount, totalCat)}%{n > 1 ? ` · ${money(Math.round(c.amount / avgMonths))}/mês` : ""}</span>
+                    {p ? <Delta v={c.amount - p} flow={flow} /> : prevTotal ? <span class="delta new">novo</span> : null}
+                  </div>
                 </div>
-                <div class="hbar"><div class={`fill ${flow}`} style={{ width: `${(c.amount / cats[0].amount) * 100}%` }} /></div>
-                <small class="muted">{pct(c.amount, totalCat)}% do total{n > 1 ? ` · ${money(Math.round(c.amount / avgMonths))}/mês` : ""}{p ? ` · ${signedMoney(c.amount - p)} vs ${prevLabel}` : prevTotal ? " · novo" : ""}</small>
               </li>
             );
           })}
         </ul>
       </section>
 
+      {/* ---------- Fixas × variáveis ---------- */}
       <section class="card">
-        <h2>Fixas × variáveis</h2>
-        <p class="muted small" style={{ marginTop: "-6px" }}>Fixas = recorrentes mensais · parceladas = parcelas de compras · variáveis = lançamentos únicos.</p>
-        {natTotal === 0 ? <p class="muted">Sem despesas no período.</p> : (
+        <CardHead icon="layers" tone="brand" title="Fixas × variáveis" sub="Fixas = recorrentes · parceladas = parcelas · variáveis = únicas" />
+        {natTotal === 0 ? <p class="muted small">Sem despesas no período.</p> : (
           <>
             <div class="stack" role="img" aria-label={(["fixed", "installment", "variable"] as const).map((k) => `${NATURE_LABEL[k]} ${pct(nat[k], natTotal)}%`).join(", ")}>
               {(["fixed", "installment", "variable"] as const).filter((k) => nat[k] > 0).map((k) => <div key={k} class={`seg-${k}`} style={{ flexGrow: nat[k] }} />)}
             </div>
-            <ul class="nature-rows">
+            <div class="nat-tiles">
               {(["fixed", "installment", "variable"] as const).map((k) => (
-                <li key={k}>
-                  <i class={`sw ${k}`} />
-                  <span class="lbl">{NATURE_LABEL[k]}<small>{pct(nat[k], natTotal)}% das despesas{n > 1 ? ` · ${money(Math.round(nat[k] / avgMonths))}/mês` : ""}</small></span>
-                  <span class="vals"><b class="num">{money(nat[k])}</b><small>{natPrev.fixed + natPrev.installment + natPrev.variable > 0 ? `${signedMoney(nat[k] - natPrev[k])} vs ${prevLabel}` : " "}</small></span>
-                </li>
+                <div key={k} class="nat-tile">
+                  <span class="nat-head"><i class={`sw ${k}`} />{NATURE_LABEL[k]}</span>
+                  <b class="num">{moneyCompact(nat[k])}</b>
+                  <small>{pct(nat[k], natTotal)}%{n > 1 ? ` · ${moneyCompact(Math.round(nat[k] / avgMonths))}/mês` : ""}</small>
+                  {natPrev.fixed + natPrev.installment + natPrev.variable > 0 && <Delta v={nat[k] - natPrev[k]} flow="expense" compact />}
+                </div>
               ))}
-            </ul>
+            </div>
             {tot.income > 0 && (
-              <p class="insight">
-                Fixas + parceladas (já comprometidas) somam <b class="num">{money(nat.fixed + nat.installment)}</b>,
-                ou <b>{pct(nat.fixed + nat.installment, tot.income)}%</b> das receitas do período. As variáveis consomem <b>{pct(nat.variable, tot.income)}%</b>.
-              </p>
+              <div class="insight">
+                <Icon name="sparkle" />
+                <p><b>{pct(nat.fixed + nat.installment, tot.income)}%</b> das receitas já estão comprometidas com fixas e parcelas
+                  (<span class="num">{money(nat.fixed + nat.installment)}</span>). As variáveis consomem <b>{pct(nat.variable, tot.income)}%</b>.</p>
+              </div>
             )}
           </>
         )}
-        <h2 style={{ marginTop: "18px" }}>{n === 1 ? "6 meses até " + monthShort(start) : "Mês a mês"}</h2>
+        <div class="sub-head"><span>{n === 1 ? `6 meses até ${monthShort(start)}` : "Mês a mês"}</span>
+          <button type="button" class="link" onClick={() => setNatTable(!natTable)}>{natTable ? "ocultar tabela" : "ver tabela"}</button></div>
         <NatureChart rows={natRows} current={cur} />
-        <button type="button" class="link" onClick={() => setNatTable(!natTable)}>{natTable ? "Ocultar tabela" : "Ver tabela"}</button>
         {natTable && (
           <div class="table-wrap">
             <table>
@@ -224,34 +260,32 @@ export function Stats({ store }: { store: Store }) {
         )}
       </section>
 
+      {/* ---------- Imóveis ---------- */}
       {data.properties.length > 0 && (
         <section class="card">
-          <h2>Custos por imóvel</h2>
-          <p class="muted small" style={{ marginTop: "-6px" }}>Total no período; a média mensal conta só os meses desde o 1º custo do imóvel.</p>
-          <ul class="cat-bars">
+          <CardHead icon="home" tone="brand" title="Custos por imóvel" sub="Total no período · média desde o 1º custo" />
+          <ul class="rank">
             {propRows.map(({ p, total, first, count }) => (
               <li key={p.id}>
-                <div class="cat-line">
-                  <span class="name"><span class="em">{PROPERTY_KIND[p.kind].emoji}</span>{p.name}</span>
-                  <b class="num">{money(total)}</b>
+                <span class="avatar brand" aria-hidden="true">{PROPERTY_KIND[p.kind].emoji}</span>
+                <div class="rank-main">
+                  <div class="rank-top"><span class="name">{p.name}</span><b class="num">{money(total)}</b></div>
+                  <div class="hbar"><div class="fill brand" style={{ width: `${(total / propMax) * 100}%` }} /></div>
+                  <div class="rank-meta">
+                    <span>{!first ? "sem custos no período" : n === 1 ? PROPERTY_KIND[p.kind].label : `média ${money(Math.round(total / count))}/mês${count < n ? ` · desde ${monthShort(first)}` : ""}`}</span>
+                  </div>
                 </div>
-                <div class="hbar"><div class="fill brand" style={{ width: `${(total / propMax) * 100}%` }} /></div>
-                <small class="muted">
-                  {!first ? "sem custos no período"
-                    : n === 1 ? ""
-                    : `média ${money(Math.round(total / count))}/mês${count < n ? ` (desde ${monthShort(first)}, ${count} ${count === 1 ? "mês" : "meses"})` : ""}`}
-                </small>
               </li>
             ))}
           </ul>
         </section>
       )}
 
+      {/* ---------- Receitas × despesas ---------- */}
       <section class="card">
-        <h2>Receitas × despesas</h2>
-        <p class="muted small" style={{ marginTop: "-6px" }}>{n === 1 ? `6 meses até ${monthShort(start)}` : label}</p>
+        <CardHead icon="bars" tone="brand" title="Receitas × despesas" sub={n === 1 ? `6 meses até ${monthShort(start)}` : label}
+          right={<button type="button" class="link" onClick={() => setTable(!table)}>{table ? "ocultar tabela" : "ver tabela"}</button>} />
         <IncomeExpenseChart rows={perMonth} current={cur} />
-        <button type="button" class="link" onClick={() => setTable(!table)}>{table ? "Ocultar tabela" : "Ver tabela"}</button>
         {table && (
           <div class="table-wrap">
             <table>
@@ -265,11 +299,29 @@ export function Stats({ store }: { store: Store }) {
         )}
       </section>
 
+      {/* ---------- Saldo ---------- */}
       <section class="card">
-        <h2>Saldo no fim do mês</h2>
-        <p class="muted small" style={{ marginTop: "-6px" }}>{n === 1 ? `6 meses até ${monthShort(start)}` : label} · tracejado = previsão (recorrentes, parcelas e pendentes)</p>
+        <CardHead icon="trend" tone="brand" title="Saldo no fim do mês" sub={`${n === 1 ? `6 meses até ${monthShort(start)}` : label} · tracejado = previsão`} />
         <BalanceChart rows={balance} current={cur} />
       </section>
     </>
   );
+}
+
+/** Cabeçalho de card: ícone em quadradinho colorido + título (+ subtítulo e ação à direita). */
+function CardHead({ icon, tone, title, sub, right }: { icon: IconName; tone: "expense" | "income" | "brand"; title: string; sub?: string; right?: ComponentChildren }) {
+  return (
+    <div class="card-head2">
+      <span class={`head-ic ${tone}`}><Icon name={icon} /></span>
+      <div class="head-txt"><h2>{title}</h2>{sub && <small>{sub}</small>}</div>
+      {right && <div class="head-right">{right}</div>}
+    </div>
+  );
+}
+
+/** Variação com seta e cor (texto, nunca só cor): gastar mais = alerta; receber mais = bom. */
+function Delta({ v, flow, suffix = "", compact }: { v: number; flow: "expense" | "income"; suffix?: string; compact?: boolean }) {
+  if (Math.abs(v) < 1) return <span class="delta flat">= {suffix.trim()}</span>;
+  const good = flow === "income" ? v > 0 : v < 0;
+  return <span class={`delta ${good ? "good" : "bad"}`}>{v > 0 ? "▲" : "▼"} {(compact ? moneyCompact : money)(Math.abs(v))}{suffix}</span>;
 }
