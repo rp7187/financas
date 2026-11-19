@@ -28,7 +28,7 @@ export const NATURE_LABEL = { fixed: "Fixas", installment: "Parceladas", variabl
 /** Despesas por natureza, colunas empilhadas por mês (fixas embaixo; 2px de respiro entre segmentos). */
 export function NatureChart({ rows, current }: { rows: NatureRow[]; current: string }) {
   const [sel, setSel] = useState<number | null>(null);
-  const W = 340, H = 170, left = 36, top = 10, bottom = 20, gap = 2;
+  const W = 340, H = 140, left = 36, top = 10, bottom = 20, gap = 2;
   const totals = rows.map((r) => r.fixed + r.installment + r.variable);
   const max = niceMax(Math.max(...totals));
   const slot = (W - left) / rows.length;
@@ -98,7 +98,7 @@ export function FlowBalanceChart({ rows, current }: { rows: FlowRow[]; current: 
   const [sel, setSel] = useState<number>(rows.some((r) => r.month === current) ? initial : rows.length - 1);
   const s = rows[Math.min(sel, rows.length - 1)];
   const W = 340, left = 40, right = 8;
-  const top1 = 30, h1 = 104, gapY = 46, h2 = 92, bottomPad = 20;
+  const top1 = 28, h1 = 86, gapY = 42, h2 = 76, bottomPad = 20;
   const top2 = top1 + h1 + gapY;
   const H = top2 + h2 + bottomPad;
   const slot = (W - left - right) / rows.length;
