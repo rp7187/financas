@@ -17,6 +17,11 @@ export function MonthView({ store }: { store: Store }) {
   const isCurrent = month === thisMonth();
   const today = todayISO();
   const ratio = tot.income > 0 ? tot.expense / tot.income : tot.expense > 0 ? 1.01 : 0;
+  const toPay = tot.expense - tot.expensePaid;
+  const paidShare = tot.expense > 0 ? tot.expensePaid / tot.expense : 0;
+  const pendingExpItems = items.filter(({ txn: t }) => t.type === "expense" && !t.paid && (!acc || t.accountId === acc));
+  const pendingExp = pendingExpItems.length;
+  const overdueExp = pendingExpItems.filter(({ txn: t }) => t.date < today).length;
 
   const groups = new Map<string, Item[]>();
   for (const it of items) {
@@ -47,24 +52,31 @@ export function MonthView({ store }: { store: Store }) {
         <div class="hero-amount num">{money(projected)}</div>
         {isCurrent && <div class="hero-sub">Saldo agora <b class="num">{money(now)}</b></div>}
         <div class="hero-tiles">
-          <div class="tile">
+          <div class="tile wide">
             <span class="tile-head"><span class="tile-icon in"><Icon name="down" /></span>Receitas</span>
-            <b class="num">{money(tot.income)}</b>
-            <small>{tot.incomePaid === tot.income ? "tudo recebido" : `recebido ${money(tot.incomePaid)}`}</small>
+            <div class="tile-row">
+              <b class="num">{money(tot.income)}</b>
+              <small>{tot.income === 0 ? "nenhuma no mês" : tot.incomePaid === tot.income ? "✓ tudo recebido" : <>falta receber <b class="num">{money(tot.income - tot.incomePaid)}</b></>}</small>
+            </div>
           </div>
           <div class="tile">
-            <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Despesas</span>
-            <b class="num">{money(tot.expense)}</b>
-            <small>{tot.expensePaid === tot.expense ? "tudo pago" : `pago ${money(tot.expensePaid)}`}</small>
+            <span class="tile-head"><span class="tile-icon paid"><Icon name="check" /></span>Pago</span>
+            <b class="num">{money(tot.expensePaid)}</b>
+            <small>de {money(tot.expense)} em despesas</small>
+          </div>
+          <div class={`tile ${toPay > 0 ? "due" : ""} ${overdueExp ? "late" : ""}`}>
+            <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Falta pagar</span>
+            <b class="num">{money(toPay)}</b>
+            <small>{toPay === 0 ? (tot.expense ? "✓ tudo pago" : "nenhuma despesa") : `${pendingExp} conta${pendingExp > 1 ? "s" : ""}${overdueExp ? ` · ${overdueExp} vencida${overdueExp > 1 ? "s" : ""}` : ""}`}</small>
           </div>
         </div>
-        {(tot.income > 0 || tot.expense > 0) && (
+        {tot.expense > 0 && (
           <div class="spend">
-            <div class={`spend-bar ${ratio > 1 ? "over" : ""}`} role="progressbar" aria-valuenow={Math.round(ratio * 100)} aria-valuemin={0} aria-valuemax={100}
-              aria-label="Despesas em relação às receitas"><div style={{ width: `${Math.min(1, ratio) * 100}%` }} /></div>
+            <div class="spend-bar" role="progressbar" aria-valuenow={Math.round(paidShare * 100)} aria-valuemin={0} aria-valuemax={100}
+              aria-label="Parte das despesas do mês já paga"><div style={{ width: `${paidShare * 100}%` }} /></div>
             <div class="spend-text">
-              <span>{tot.income > 0 ? `Despesas = ${Math.round(ratio * 100)}% das receitas` : "Sem receitas no mês"}</span>
-              <span>{tot.income >= tot.expense ? "Sobra" : "Falta"} <b class="num">{money(Math.abs(tot.income - tot.expense))}</b></span>
+              <span>{Math.round(paidShare * 100)}% das despesas pagas</span>
+              <span>{tot.income > 0 ? `despesas = ${Math.round(ratio * 100)}% das receitas` : ""}</span>
             </div>
           </div>
         )}
