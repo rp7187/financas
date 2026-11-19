@@ -115,3 +115,57 @@ export function BalanceChart({ rows, current }: { rows: { month: string; balance
     </figure>
   );
 }
+
+export type NatureRow = { month: string; fixed: number; installment: number; variable: number };
+const NATURE_ORDER = ["fixed", "installment", "variable"] as const;
+export const NATURE_LABEL = { fixed: "Fixas", installment: "Parceladas", variable: "Variáveis" } as const;
+
+/** Despesas por natureza, colunas empilhadas por mês (fixas embaixo; 2px de respiro entre segmentos). */
+export function NatureChart({ rows, current }: { rows: NatureRow[]; current: string }) {
+  const [sel, setSel] = useState<number | null>(null);
+  const W = 340, H = 170, left = 36, top = 10, bottom = 20, gap = 2;
+  const totals = rows.map((r) => r.fixed + r.installment + r.variable);
+  const max = niceMax(Math.max(...totals));
+  const slot = (W - left) / rows.length;
+  const bw = Math.min(30, slot - 10);
+  const base = H - bottom;
+  const scale = (base - top) / max;
+  const s = sel !== null ? rows[sel] : null;
+  return (
+    <figure class="chart">
+      <div class="legend">{NATURE_ORDER.map((k) => <span key={k}><i class={`sw ${k}`} />{NATURE_LABEL[k]}</span>)}</div>
+      <p class="chart-detail" aria-live="polite">
+        {s ? <>{monthLong(s.month)}: fixas {money(s.fixed)} · parceladas {money(s.installment)} · variáveis {money(s.variable)}</> : "Toque num mês para ver os valores."}
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={rows.map((r) => `${monthShort(r.month)}: fixas ${money(r.fixed)}, parceladas ${money(r.installment)}, variáveis ${money(r.variable)}`).join("; ")}>
+        {[0, 0.5, 1].map((f) => (
+          <g key={f}>
+            <line x1={left} x2={W} y1={base - f * (base - top)} y2={base - f * (base - top)} class="grid" />
+            <text x={left - 6} y={base - f * (base - top) + 3.5} class="tick" text-anchor="end">{moneyShort(max * f)}</text>
+          </g>
+        ))}
+        {rows.map((r, i) => {
+          const x = left + i * slot + (slot - bw) / 2;
+          let y = base;
+          const segs = NATURE_ORDER.map((k) => ({ k, h: r[k] * scale })).filter((g) => g.h > 0.5);
+          return (
+            <g key={r.month} class="hit" onClick={() => setSel(sel === i ? null : i)}>
+              <rect x={left + i * slot} y={0} width={slot} height={H} fill="transparent" />
+              {segs.map((g, j) => {
+                const last = j === segs.length - 1;
+                const h = Math.max(1, g.h - (j > 0 ? gap : 0));
+                const yTop = y - (j > 0 ? gap : 0) - h;
+                const el = last
+                  ? <path key={g.k} d={barPath(x, bw, yTop + h, h)} class={`bar ${g.k} ${sel === i ? "sel" : ""}`} />
+                  : <rect key={g.k} x={x} y={yTop} width={bw} height={h} class={`bar ${g.k} ${sel === i ? "sel" : ""}`} />;
+                y = yTop;
+                return el;
+              })}
+              <text x={left + i * slot + slot / 2} y={H - 5} class={`tick ${r.month === current ? "now" : ""}`} text-anchor="middle">{monthShort(r.month).slice(0, 3)}</text>
+            </g>
+          );
+        })}
+      </svg>
+    </figure>
+  );
+}

@@ -17,6 +17,9 @@
   --income-text: #0b7a52;
   --expense-text: #c2410c;
   --line: #4f46e5;
+  --fixed: #2a78d6;
+  --installment: #d55181;
+  --variable: #b87800;
   --brand: #4f46e5;
   --brand-2: #7c3aed;
   --hero: linear-gradient(140deg, #1e1b4b 0%, #3730a3 48%, #6d28d9 100%);
@@ -50,6 +53,9 @@
     --income-text: #3fbf8a;
     --expense-text: #f08a5d;
     --line: #8b85f7;
+    --fixed: #3987e5;
+    --installment: #d55181;
+    --variable: #c98500;
     --brand: #7c74f5;
     --brand-2: #a78bfa;
     --hero: linear-gradient(140deg, #17153a 0%, #2e2a85 50%, #5b21b6 100%);
@@ -343,3 +349,19 @@ tr:last-child td { border-bottom: 0; }
 }
 .tabbar .plus svg { width: 28px; height: 28px; stroke-width: 2.6; }
 .tabbar .plus:active { transform: scale(0.95); }
+
+/* Fixas × parceladas × variáveis (cores validadas nos dois temas) */
+.sw.fixed, .bar.fixed, .seg-fixed { background: var(--fixed); fill: var(--fixed); }
+.sw.installment, .bar.installment, .seg-installment { background: var(--installment); fill: var(--installment); }
+.sw.variable, .bar.variable, .seg-variable { background: var(--variable); fill: var(--variable); }
+.stack { display: flex; gap: 2px; height: 14px; border-radius: 999px; overflow: hidden; background: var(--surface-2); margin: 12px 0 6px; }
+.stack div { height: 100%; min-width: 3px; }
+.nature-rows { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-direction: column; gap: 10px; }
+.nature-rows li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+.nature-rows .sw { width: 12px; height: 12px; border-radius: 4px; }
+.nature-rows .lbl { display: flex; flex-direction: column; }
+.nature-rows .lbl small { color: var(--muted); font-size: 12px; }
+.nature-rows .vals { text-align: right; display: flex; flex-direction: column; }
+.nature-rows .vals small { color: var(--muted); font-size: 12px; }
+.insight { margin: 14px 0 0; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); font-size: 14px; color: var(--text-2); line-height: 1.4; }
+.insight b { color: var(--text); }

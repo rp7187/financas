@@ -1,9 +1,9 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
 import { addMonths, monthLong, monthShort, thisMonth } from "../dates";
-import { balanceByMonth, byCategory, byProperty, monthItems, monthTotals } from "../engine";
+import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals } from "../engine";
 import { PROPERTY_KIND, money, reais, signedMoney } from "../model";
-import { BalanceChart, IncomeExpenseChart } from "./charts";
+import { BalanceChart, IncomeExpenseChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon } from "./icons";
 
 export function Stats({ store }: { store: Store }) {
@@ -20,6 +20,14 @@ export function Stats({ store }: { store: Store }) {
   const prev = new Map(byCategory(prevItems, flow, acc).map((c) => [c.categoryId, c.amount]));
   const totalCat = cats.reduce((s, c) => s + c.amount, 0);
   const prevTotal = [...prev.values()].reduce((s, v) => s + v, 0);
+
+  // Fixas × parceladas × variáveis
+  const nat = expenseByNature(items, acc);
+  const natPrev = expenseByNature(prevItems, acc);
+  const natTotal = nat.fixed + nat.installment + nat.variable;
+  const incomeMonth = monthTotals(items, acc).income;
+  const natRows = Array.from({ length: 6 }, (_, i) => addMonths(month, i - 5)).map((m) => ({ month: m, ...expenseByNature(monthItems(data, m), acc) }));
+  const [natTable, setNatTable] = useState(false);
 
   const months12 = Array.from({ length: 12 }, (_, i) => addMonths(cur, i - 11));
   const last12 = months12.map((m) => {
@@ -93,6 +101,47 @@ export function Stats({ store }: { store: Store }) {
             );
           })}
         </ul>
+      </section>
+
+      <section class="card">
+        <h2>Fixas × variáveis</h2>
+        <p class="muted small" style={{ marginTop: "-6px" }}>{monthLong(month)} · fixas = recorrentes mensais; parceladas = parcelas de compras; variáveis = lançamentos únicos.</p>
+        {natTotal === 0 ? <p class="muted">Sem despesas neste mês.</p> : (
+          <>
+            <div class="stack" role="img" aria-label={(["fixed", "installment", "variable"] as const).map((k) => `${NATURE_LABEL[k]} ${Math.round((nat[k] / natTotal) * 100)}%`).join(", ")}>
+              {(["fixed", "installment", "variable"] as const).filter((k) => nat[k] > 0).map((k) => <div key={k} class={`seg-${k}`} style={{ flexGrow: nat[k] }} />)}
+            </div>
+            <ul class="nature-rows">
+              {(["fixed", "installment", "variable"] as const).map((k) => (
+                <li key={k}>
+                  <i class={`sw ${k}`} />
+                  <span class="lbl">{NATURE_LABEL[k]}<small>{Math.round((nat[k] / natTotal) * 100)}% das despesas</small></span>
+                  <span class="vals"><b class="num">{money(nat[k])}</b><small>{natPrev.fixed + natPrev.installment + natPrev.variable > 0 ? `${signedMoney(nat[k] - natPrev[k])} vs ${monthShort(addMonths(month, -1))}` : " "}</small></span>
+                </li>
+              ))}
+            </ul>
+            {incomeMonth > 0 && (
+              <p class="insight">
+                As despesas <b>fixas + parceladas</b> (já comprometidas) somam <b class="num">{money(nat.fixed + nat.installment)}</b>,
+                ou <b>{Math.round(((nat.fixed + nat.installment) / incomeMonth) * 100)}%</b> das receitas do mês.
+                As variáveis consomem <b>{Math.round((nat.variable / incomeMonth) * 100)}%</b>.
+              </p>
+            )}
+          </>
+        )}
+        <h2 style={{ marginTop: "18px" }}>Últimos 6 meses</h2>
+        <NatureChart rows={natRows} current={cur} />
+        <button type="button" class="link" onClick={() => setNatTable(!natTable)}>{natTable ? "Ocultar tabela" : "Ver tabela"}</button>
+        {natTable && (
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>R$</th><th>Fixas</th><th>Parcel.</th><th>Variáveis</th><th>Total</th></tr></thead>
+              <tbody>{[...natRows].reverse().map((r) => (
+                <tr key={r.month}><td>{monthShort(r.month)}</td><td>{reais(r.fixed)}</td><td>{reais(r.installment)}</td><td>{reais(r.variable)}</td><td>{reais(r.fixed + r.installment + r.variable)}</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {data.properties.length > 0 && (

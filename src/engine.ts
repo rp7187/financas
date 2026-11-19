@@ -112,6 +112,20 @@ export function balanceByMonth(d: Data, from: string, to: string, accountId?: st
   return out;
 }
 
+/** Natureza da despesa: fixa (recorrente mensal), parcelada ou variável (lançamento único). */
+export type Nature = "fixed" | "installment" | "variable";
+export const natureOf = (t: Txn): Nature => (t.ruleId ? "fixed" : t.planId ? "installment" : "variable");
+
+/** Despesas do mês separadas em fixas / parceladas / variáveis. */
+export function expenseByNature(items: Item[], accountId?: string): Record<Nature, number> {
+  const out: Record<Nature, number> = { fixed: 0, installment: 0, variable: 0 };
+  for (const { txn: t } of items) {
+    if (t.type !== "expense" || (accountId && t.accountId !== accountId)) continue;
+    out[natureOf(t)] += t.amount;
+  }
+  return out;
+}
+
 /** Despesas por imóvel nos itens dados (só lançamentos associados a imóvel). */
 export function byProperty(items: Item[]) {
   const map = new Map<string, number>();
