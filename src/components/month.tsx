@@ -5,9 +5,13 @@ import { balanceByMonth, currentBalance, effect, monthItems, monthTotals, type I
 import { money, signedMoney, uid, type Txn } from "../model";
 import { Icon } from "./icons";
 
+type View = "all" | "toPay" | "paid" | "income";
+const VIEW_LABEL: Record<View, string> = { all: "Tudo", toPay: "Falta pagar", paid: "Pago", income: "Receitas" };
+
 export function MonthView({ store }: { store: Store }) {
   const { data, month, setMonth } = store;
   const [accountId, setAccountId] = useState<string>("");
+  const [view, setView] = useState<View>("all");
   const acc = accountId || undefined;
   const all = monthItems(data, month);
   const items = acc ? all.filter(({ txn: t }) => t.accountId === acc || t.toAccountId === acc) : all;
@@ -23,8 +27,18 @@ export function MonthView({ store }: { store: Store }) {
   const pendingExp = pendingExpItems.length;
   const overdueExp = pendingExpItems.filter(({ txn: t }) => t.date < today).length;
 
+  // Filtro pelas caixas do topo: tocar em "Falta pagar" mostra só o que falta pagar etc.
+  const shown = items.filter(({ txn: t }) =>
+    view === "all" ? true
+    : view === "income" ? t.type === "income"
+    : t.type === "expense" && (!acc || t.accountId === acc) && (view === "paid" ? t.paid : !t.paid));
+  const pick = (v: View) => {
+    setView(view === v ? "all" : v);
+    requestAnimationFrame(() => document.getElementById("lista")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  };
+
   const groups = new Map<string, Item[]>();
-  for (const it of items) {
+  for (const it of shown) {
     const g = groups.get(it.txn.date) ?? [];
     g.push(it);
     groups.set(it.txn.date, g);
@@ -52,23 +66,23 @@ export function MonthView({ store }: { store: Store }) {
         <div class="hero-amount num">{money(projected)}</div>
         {isCurrent && <div class="hero-sub">Saldo agora <b class="num">{money(now)}</b></div>}
         <div class="hero-tiles">
-          <div class="tile wide">
-            <span class="tile-head"><span class="tile-icon in"><Icon name="down" /></span>Receitas</span>
+          <button type="button" class={`tile wide ${view === "income" ? "active" : ""}`} aria-pressed={view === "income"} onClick={() => pick("income")}>
+            <span class="tile-head"><span class="tile-icon in"><Icon name="down" /></span>Receitas<Icon name="chevR" class="tile-chev" /></span>
             <div class="tile-row">
               <b class="num">{money(tot.income)}</b>
               <small>{tot.income === 0 ? "nenhuma no mês" : tot.incomePaid === tot.income ? "✓ tudo recebido" : <>falta receber <b class="num">{money(tot.income - tot.incomePaid)}</b></>}</small>
             </div>
-          </div>
-          <div class="tile">
-            <span class="tile-head"><span class="tile-icon paid"><Icon name="check" /></span>Pago</span>
+          </button>
+          <button type="button" class={`tile ${view === "paid" ? "active" : ""}`} aria-pressed={view === "paid"} onClick={() => pick("paid")}>
+            <span class="tile-head"><span class="tile-icon paid"><Icon name="check" /></span>Pago<Icon name="chevR" class="tile-chev" /></span>
             <b class="num">{money(tot.expensePaid)}</b>
             <small>de {money(tot.expense)} em despesas</small>
-          </div>
-          <div class={`tile ${toPay > 0 ? "due" : ""} ${overdueExp ? "late" : ""}`}>
-            <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Falta pagar</span>
+          </button>
+          <button type="button" class={`tile ${toPay > 0 ? "due" : ""} ${overdueExp ? "late" : ""} ${view === "toPay" ? "active" : ""}`} aria-pressed={view === "toPay"} onClick={() => pick("toPay")}>
+            <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Falta pagar<Icon name="chevR" class="tile-chev" /></span>
             <b class="num">{money(toPay)}</b>
             <small>{toPay === 0 ? (tot.expense ? "✓ tudo pago" : "nenhuma despesa") : `${pendingExp} conta${pendingExp > 1 ? "s" : ""}${overdueExp ? ` · ${overdueExp} vencida${overdueExp > 1 ? "s" : ""}` : ""}`}</small>
-          </div>
+          </button>
         </div>
         {tot.expense > 0 && (
           <div class="spend">
@@ -93,11 +107,22 @@ export function MonthView({ store }: { store: Store }) {
         </div>
       )}
 
-      {tot.overdue > 0 && (
-        <div class="alert" role="status"><Icon name="alert" />{tot.overdue} lançamento{tot.overdue > 1 ? "s" : ""} pendente{tot.overdue > 1 ? "s" : ""} com data vencida</div>
+      {tot.overdue > 0 && view !== "toPay" && (
+        <button type="button" class="alert" onClick={() => pick("toPay")}><Icon name="alert" />{tot.overdue} lançamento{tot.overdue > 1 ? "s" : ""} pendente{tot.overdue > 1 ? "s" : ""} com data vencida<Icon name="chevR" class="tile-chev" /></button>
       )}
 
-      {!items.length && (
+      <div id="lista" />
+      {view !== "all" && (
+        <div class="filter-bar" role="status">
+          <span><b>{VIEW_LABEL[view]}</b> · {shown.length} lançamento{shown.length === 1 ? "" : "s"} · <span class="num">{money(shown.reduce((s, it) => s + it.txn.amount, 0))}</span></span>
+          <button type="button" class="link" onClick={() => setView("all")}>Ver tudo</button>
+        </div>
+      )}
+      {view !== "all" && !shown.length && (
+        <p class="empty muted">{view === "toPay" ? "Nada a pagar neste mês. 🎉" : view === "paid" ? "Nenhuma despesa paga ainda neste mês." : "Nenhuma receita neste mês."}</p>
+      )}
+
+      {!items.length && view === "all" && (
         <div class="empty muted">
           <p>Nenhum lançamento em {monthLong(month).toLowerCase()}.</p>
           <button type="button" class="btn brand" onClick={() => store.openTxn({ draft: true })}><Icon name="plus" />Novo lançamento</button>
@@ -117,7 +142,7 @@ export function MonthView({ store }: { store: Store }) {
           </section>
         );
       })}
-      {items.length > 0 && <p class="hint-line">Toque no ícone para marcar como pago/recebido.</p>}
+      {shown.length > 0 && <p class="hint-line">Toque no ícone para marcar como pago/recebido.</p>}
     </>
   );
 }
