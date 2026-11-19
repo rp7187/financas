@@ -33,6 +33,16 @@ export type Category = Base & {
   archived?: boolean;
 };
 
+/** Imóvel: para associar custos (opcional nas despesas). */
+export type PropertyKind = "apartment" | "house" | "land" | "commercial" | "other";
+export type Property = Base & {
+  t: "property";
+  name: string;
+  kind: PropertyKind;
+  note?: string;
+  archived?: boolean;
+};
+
 /** Lançamento efetivo (único, parcela, ou mês de um recorrente que foi confirmado/ajustado). */
 export type Txn = Base & {
   t: "txn";
@@ -48,6 +58,7 @@ export type Txn = Base & {
   installment?: number; // 1..count
   ruleId?: string; // mês de um recorrente
   ruleMonth?: string; // "AAAA-MM" do recorrente (um registro excluído aqui = "pular este mês")
+  propertyId?: string; // imóvel associado (opcional)
 };
 
 /** Recorrente mensal: gera um lançamento previsto por mês (sem gravar nada até ser confirmado/ajustado). */
@@ -61,6 +72,7 @@ export type Rule = Base & {
   day: number; // 1..31 (meses mais curtos usam o último dia)
   startMonth: string;
   endMonth?: string; // inclusive; ausente = sem fim
+  propertyId?: string;
 };
 
 /** Parcelamento: total dividido em `count` parcelas mensais (cada parcela é um Txn com planId). */
@@ -73,9 +85,18 @@ export type Plan = Base & {
   categoryId: string;
   accountId: string;
   firstDate: string;
+  propertyId?: string;
 };
 
-export type Rec = Account | Category | Txn | Rule | Plan;
+export type Rec = Account | Category | Txn | Rule | Plan | Property;
+
+export const PROPERTY_KIND: Record<PropertyKind, { label: string; emoji: string }> = {
+  apartment: { label: "Apartamento", emoji: "🏢" },
+  house: { label: "Casa", emoji: "🏡" },
+  land: { label: "Terreno", emoji: "🌳" },
+  commercial: { label: "Comercial", emoji: "🏬" },
+  other: { label: "Outro", emoji: "📍" },
+};
 
 export const KIND_LABEL: Record<AccountKind, string> = {
   checking: "Conta corrente",
@@ -116,5 +137,5 @@ export function isRec(x: unknown): x is Rec {
   if (!x || typeof x !== "object") return false;
   const r = x as Record<string, unknown>;
   return typeof r.id === "string" && typeof r.updatedAt === "number" &&
-    ["account", "category", "txn", "rule", "plan"].includes(r.t as string);
+    ["account", "category", "txn", "rule", "plan", "property"].includes(r.t as string);
 }

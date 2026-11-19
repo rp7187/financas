@@ -2,11 +2,11 @@
 
 Controle financeiro pessoal/familiar: **contas** (vários bancos), **receitas e despesas** por categoria,
 **recorrentes** (todo mês, sem fim definido), **parcelados** (valor total ÷ parcelas), **transferências**
-entre contas, pago/pendente e **estatísticas** com previsão dos próximos meses.
+entre contas, **imóveis** (custos associados, opcional), pago/pendente e **análises** com previsão dos próximos meses.
 
 - PWA: roda no Safari do iPhone e do Mac e pode ser instalado (tela de início / Dock), sem loja de apps.
 - Funciona offline; dados no aparelho (IndexedDB). Sincronização em família: fase 2 (ver `CLAUDE.md`).
-- Leve: ~22 KB (gzip) de JS + CSS; única dependência é o Preact.
+- Leve: ~26 KB (gzip) de JS + CSS; única dependência é o Preact.
 
 ## Uso
 
@@ -15,7 +15,7 @@ entre contas, pago/pendente e **estatísticas** com previsão dos próximos mese
 - **Contas**: saldo de cada conta (saldo inicial + o que já foi pago/recebido) e transferências.
 - **Estatísticas**: despesas/receitas por categoria (vs mês anterior), receitas × despesas em 12 meses,
   saldo no fim de cada mês com previsão de 6 meses, e o que já está comprometido nos próximos meses.
-- **Ajustes**: categorias (criar/editar/arquivar), backup (exportar/importar).
+- **Ajustes**: imóveis (cadastro e custo dos últimos 12 meses), categorias (criar/editar/arquivar), backup.
 
 ## Desenvolvimento
 

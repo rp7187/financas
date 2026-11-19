@@ -1,0 +1,32 @@
+/** Ícones de traço (24×24), sem biblioteca. */
+const PATHS = {
+  chevL: "M15 18l-6-6 6-6",
+  chevR: "M9 18l6-6-6-6",
+  plus: "M12 5v14M5 12h14",
+  check: "M5 12.5l4.5 4.5L19 7.5",
+  down: "M12 5v14M6 13l6 6 6-6",
+  up: "M12 19V5M6 11l6-6 6 6",
+  swap: "M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4",
+  calendar: "M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 10h16M9 3v4M15 3v4",
+  wallet: "M3 7a2 2 0 0 1 2-2h13v4M3 7v10a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zM16 14h.01",
+  chart: "M4 20V11M10 20V5M16 20v-6M21 20H3",
+  sliders: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
+  home: "M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6",
+  tag: "M3 12V4h8l10 10-8 8zM7.5 7.5h.01",
+  cloud: "M7 18a5 5 0 1 1 .9-9.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z",
+  download: "M12 4v11M7 10l5 5 5-5M5 20h14",
+  upload: "M12 20V9M7 14l5-5 5 5M5 4h14",
+  trash: "M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13",
+  alert: "M12 9v4M12 17h.01M10.3 3.9L2.5 17.5A2 2 0 0 0 4.2 20.5h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z",
+  info: "M12 8h.01M11 12h1v5h1M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z",
+} as const;
+
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, class: cls = "" }: { name: IconName; class?: string }) {
+  return (
+    <svg class={`i ${cls}`} viewBox="0 0 24 24" aria-hidden="true">
+      <path d={PATHS[name]} />
+    </svg>
+  );
+}

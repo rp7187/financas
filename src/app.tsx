@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import * as db from "./db";
 import { defaultRecords } from "./defaults";
 import { indexData, type Data, type Item } from "./engine";
-import type { Account, Category, Rec } from "./model";
+import type { Account, Category, Property, Rec } from "./model";
 import { thisMonth } from "./dates";
 import { MonthView } from "./components/month";
 import { Accounts } from "./components/accounts";
@@ -11,6 +11,8 @@ import { Settings } from "./components/settings";
 import { TxnSheet, type TxnDraft } from "./components/txn-sheet";
 import { AccountSheet } from "./components/account-sheet";
 import { CategorySheet } from "./components/category-sheet";
+import { PropertySheet } from "./components/property-sheet";
+import { Icon, type IconName } from "./components/icons";
 
 export type Store = {
   records: Rec[];
@@ -27,14 +29,15 @@ export type Store = {
   openTxn: (x: Item | TxnDraft) => void;
   openAccount: (a: Account | null) => void;
   openCategory: (c: Category | { type: Category["type"] }) => void;
+  openProperty: (p: Property | null) => void;
 };
 
 type Tab = "month" | "accounts" | "stats" | "settings";
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "month", label: "Mês", icon: "M4 6h16v14H4zM4 10h16M9 3v4M15 3v4" },
-  { id: "accounts", label: "Contas", icon: "M3 9l9-5 9 5M5 10v8M9 10v8M15 10v8M19 10v8M3 20h18" },
-  { id: "stats", label: "Estatísticas", icon: "M4 20V10m6 10V4m6 16v-7m4 7H2" },
-  { id: "settings", label: "Ajustes", icon: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6" },
+const TABS: { id: Tab; label: string; icon: IconName }[] = [
+  { id: "month", label: "Mês", icon: "calendar" },
+  { id: "accounts", label: "Contas", icon: "wallet" },
+  { id: "stats", label: "Análises", icon: "chart" },
+  { id: "settings", label: "Ajustes", icon: "sliders" },
 ];
 
 export function App() {
@@ -45,6 +48,7 @@ export function App() {
   const [txnSheet, setTxnSheet] = useState<Item | TxnDraft | null>(null);
   const [accountSheet, setAccountSheet] = useState<Account | null | undefined>(undefined);
   const [categorySheet, setCategorySheet] = useState<Category | { type: Category["type"] } | null>(null);
+  const [propertySheet, setPropertySheet] = useState<Property | null | undefined>(undefined);
 
   useEffect(() => {
     (async () => {
@@ -101,6 +105,7 @@ export function App() {
     openTxn: setTxnSheet,
     openAccount: setAccountSheet,
     openCategory: setCategorySheet,
+    openProperty: setPropertySheet,
   };
 
   return (
@@ -111,21 +116,23 @@ export function App() {
         {tab === "stats" && <Stats store={store} />}
         {tab === "settings" && <Settings store={store} />}
       </main>
-      {(tab === "month" || tab === "accounts") && (
-        <button type="button" class="fab" aria-label="Novo lançamento" onClick={() => setTxnSheet({ draft: true })}>+</button>
-      )}
       <nav class="tabbar" aria-label="Navegação">
-        {TABS.map((t) => (
-          <button key={t.id} type="button" class={tab === t.id ? "on" : ""} aria-current={tab === t.id ? "page" : undefined}
-            onClick={() => { setTab(t.id); window.scrollTo(0, 0); }}>
-            <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d={t.icon} /></svg>
-            {t.label}
-          </button>
-        ))}
+        {TABS.slice(0, 2).map((t) => <TabButton key={t.id} t={t} on={tab === t.id} go={() => { setTab(t.id); window.scrollTo(0, 0); }} />)}
+        <button type="button" class="plus" aria-label="Novo lançamento" onClick={() => setTxnSheet({ draft: true })}><Icon name="plus" /></button>
+        {TABS.slice(2).map((t) => <TabButton key={t.id} t={t} on={tab === t.id} go={() => { setTab(t.id); window.scrollTo(0, 0); }} />)}
       </nav>
       {txnSheet && <TxnSheet store={store} target={txnSheet} onClose={() => setTxnSheet(null)} />}
       {accountSheet !== undefined && <AccountSheet store={store} account={accountSheet} onClose={() => setAccountSheet(undefined)} />}
       {categorySheet && <CategorySheet store={store} target={categorySheet} onClose={() => setCategorySheet(null)} />}
+      {propertySheet !== undefined && <PropertySheet store={store} property={propertySheet} onClose={() => setPropertySheet(undefined)} />}
     </>
+  );
+}
+
+function TabButton({ t, on, go }: { t: { id: Tab; label: string; icon: IconName }; on: boolean; go: () => void }) {
+  return (
+    <button type="button" class={`tab ${on ? "on" : ""}`} aria-current={on ? "page" : undefined} onClick={go}>
+      <Icon name={t.icon} />{t.label}
+    </button>
   );
 }

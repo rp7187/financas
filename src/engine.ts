@@ -1,5 +1,5 @@
 import { addMonths, dateInMonth, monthDiff, monthOf, todayISO } from "./dates";
-import type { Account, Category, Plan, Rec, Rule, Txn } from "./model";
+import type { Account, Category, Plan, Property, Rec, Rule, Txn } from "./model";
 
 /** Registros vivos (sem os excluídos), separados por tipo. */
 export type Data = {
@@ -8,12 +8,13 @@ export type Data = {
   txns: Txn[];
   rules: Rule[];
   plans: Plan[];
+  properties: Property[];
   /** `${ruleId}|${mês}` já materializado (inclusive excluído = mês pulado). */
   ruleDone: Set<string>;
 };
 
 export function indexData(records: Rec[]): Data {
-  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], ruleDone: new Set() };
+  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], properties: [], ruleDone: new Set() };
   for (const r of records) {
     if (r.t === "txn" && r.ruleId && r.ruleMonth) d.ruleDone.add(`${r.ruleId}|${r.ruleMonth}`);
     if (r.deleted) continue;
@@ -22,9 +23,11 @@ export function indexData(records: Rec[]): Data {
     else if (r.t === "txn") d.txns.push(r);
     else if (r.t === "rule") d.rules.push(r);
     else if (r.t === "plan") d.plans.push(r);
+    else if (r.t === "property") d.properties.push(r);
   }
   d.accounts.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "pt-BR"));
   d.categories.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  d.properties.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   return d;
 }
 
@@ -38,6 +41,7 @@ export function virtualTxn(r: Rule, month: string): Txn {
   return {
     id: `v:${r.id}:${month}`, t: "txn", updatedAt: 0, type: r.type, amount: r.amount, date: dateInMonth(month, r.day),
     description: r.description, categoryId: r.categoryId, accountId: r.accountId, paid: false, ruleId: r.id, ruleMonth: month,
+    ...(r.propertyId ? { propertyId: r.propertyId } : {}),
   };
 }
 
@@ -106,6 +110,16 @@ export function balanceByMonth(d: Data, from: string, to: string, accountId?: st
     out.push({ month: m, balance: running });
   }
   return out;
+}
+
+/** Despesas por imóvel nos itens dados (só lançamentos associados a imóvel). */
+export function byProperty(items: Item[]) {
+  const map = new Map<string, number>();
+  for (const { txn: t } of items) {
+    if (t.type !== "expense" || !t.propertyId) continue;
+    map.set(t.propertyId, (map.get(t.propertyId) ?? 0) + t.amount);
+  }
+  return map;
 }
 
 /** Despesas (ou receitas) do mês por categoria, maior primeiro. */

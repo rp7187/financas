@@ -91,6 +91,13 @@ export function BalanceChart({ rows, current }: { rows: { month: string; balance
             <text x={left - 6} y={Y(t) + 3.5} class="tick" text-anchor="end">{moneyShort(t)}</text>
           </g>
         ))}
+        <defs>
+          <linearGradient id="balance-fill" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="var(--line)" stop-opacity="0.22" />
+            <stop offset="100%" stop-color="var(--line)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        {rows.length > 1 && <path d={`${path(0, rows.length - 1)}L${X(rows.length - 1)},${Y(Math.max(lo, 0))}L${X(0)},${Y(Math.max(lo, 0))}Z`} class="area" />}
         {lo < 0 && <line x1={left} x2={W - right} y1={Y(0)} y2={Y(0)} class="zero" />}
         {ci >= 0 && <line x1={X(ci)} x2={X(ci)} y1={top} y2={H - bottom} class="today" />}
         <path d={past} class="line" />

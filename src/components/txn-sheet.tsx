@@ -27,6 +27,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const [description, setDescription] = useState(t?.description ?? "");
   const [categoryId, setCategoryId] = useState(t?.categoryId ?? "");
   const [accountId, setAccountId] = useState(t?.accountId ?? defaultAccount);
+  const [propertyId, setPropertyId] = useState(t?.propertyId ?? "");
   const [toAccountId, setToAccountId] = useState(t?.toAccountId ?? accounts.find((a) => a.id !== defaultAccount)?.id ?? "");
   const [date, setDate] = useState(t?.date ?? defaultDate);
   const [paid, setPaid] = useState(t ? t.paid : defaultDate <= todayISO());
@@ -57,6 +58,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
     description: description.trim() || (type === "transfer" ? "Transferência" : data.categories.find((c) => c.id === categoryId)?.name ?? ""),
     accountId,
     ...(type === "transfer" ? { toAccountId, categoryId: undefined } : { categoryId, toAccountId: undefined }),
+    propertyId: type === "expense" && propertyId ? propertyId : undefined,
   });
 
   async function submit(e: Event) {
@@ -72,13 +74,14 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         const rule: Rule = {
           id: uid(), t: "rule", updatedAt: 0, type: type as Flow, amount, description: b.description, categoryId, accountId,
           day: Number(date.slice(8, 10)), startMonth: monthOf(date), ...(endMonth ? { endMonth } : {}),
+          ...(b.propertyId ? { propertyId: b.propertyId } : {}),
         };
         const recs: (Rule | Txn)[] = [rule];
         // 1º mês já pago/recebido: grava o lançamento confirmado desse mês.
         if (paid) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn);
         await store.put(recs);
       } else {
-        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date };
+        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(b.propertyId ? { propertyId: b.propertyId } : {}) };
         const today = todayISO();
         const parts = splitInstallments(amount, n).map((v, i): Txn => {
           const d = addMonthsToDate(date, i);
@@ -95,6 +98,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       const m = item!.txn.ruleMonth!;
       const next: Omit<Rule, "id" | "startMonth" | "endMonth" | "updatedAt" | "t"> = {
         type: type as Flow, amount, description: b.description, categoryId, accountId, day: Number(date.slice(8, 10)),
+        propertyId: b.propertyId,
       };
       const recs: (Rule | Txn)[] = [];
       if (m === r.startMonth) {
@@ -189,7 +193,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       {type !== "transfer" && (
         <div class="field">
           <span class="label">Categoria</span>
-          <div class="chips">
+          <div class="chips cats">
             {cats.map((c) => (
               <button key={c.id} type="button" class={`chip ${categoryId === c.id ? "on" : ""}`} aria-pressed={categoryId === c.id}
                 onClick={() => { setCategoryId(c.id); setError(null); }}>{c.emoji} {c.name}</button>
@@ -217,6 +221,15 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         )}
       </div>
       {type === "transfer" && <label>Data<input type="date" value={date} onInput={(e) => setDate(e.currentTarget.value)} /></label>}
+
+      {type === "expense" && data.properties.some((p) => !p.archived || p.id === propertyId) && (
+        <label>Imóvel (opcional)
+          <select value={propertyId} onChange={(e) => setPropertyId(e.currentTarget.value)}>
+            <option value="">Nenhum</option>
+            {data.properties.filter((p) => !p.archived || p.id === propertyId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+      )}
 
       <label class="toggle">
         <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.currentTarget.checked)} />
