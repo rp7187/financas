@@ -457,3 +457,98 @@ tr:last-child td { border-bottom: 0; }
 @media (prefers-color-scheme: dark) { .bar.future { opacity: 0.85; } }
 .tick.selx { fill: var(--brand); font-weight: 700; }
 .flow-legend { flex-wrap: wrap; margin-top: 6px; gap: 6px 14px; }
+
+/* ================= Celular: tudo um pouco mais compacto =================
+   (sem `zoom`/initial-scale: no iPhone isso faz a tela ampliar ao focar campos;
+    os campos de digitação continuam com ≥ 16px pelo mesmo motivo) */
+@media (max-width: 520px) {
+  :root { --radius: 18px; --tabbar: 64px; }
+  .page { padding-left: 12px; padding-right: 12px; gap: 12px; padding-top: calc(env(safe-area-inset-top) + 10px); }
+  h1 { font-size: 25px; }
+  h2 { font-size: 15.5px; margin-bottom: 8px; }
+  .card { padding: 14px; }
+  .small { font-size: 12.5px; }
+
+  /* cartão de destaque */
+  .hero { border-radius: 22px; padding: 14px 14px 16px; }
+  .hero-nav { grid-template-columns: 34px 1fr 34px; }
+  .hero-nav h1 { font-size: 15.5px; }
+  .glass-btn { width: 34px; height: 34px; border-radius: 11px; }
+  .glass-btn svg { width: 17px; height: 17px; }
+  .hero-label { margin-top: 12px; font-size: 12px; }
+  .hero-amount { font-size: 32px; }
+  .hero-sub { font-size: 12px; }
+  .hero-tiles { gap: 8px; margin-top: 12px; }
+  .tile { padding: 10px; border-radius: 14px; }
+  .tile-head { font-size: 12px; }
+  .tile-icon { width: 19px; height: 19px; }
+  .tile b { font-size: 16px; }
+  .tile small { font-size: 11px; }
+  .spend { margin-top: 11px; }
+  .spend-bar { height: 6px; }
+  .spend-text { font-size: 11px; }
+  .glass-seg button { font-size: 12.5px; padding: 7px 2px; }
+  .glass-chips { margin-top: 9px; }
+  .glass-chips button { font-size: 12px; padding: 6px 11px; }
+  .hero-stats .hero-nav { margin-top: 10px; }
+  .hero-stats .hero-label { margin-top: 14px; }
+
+  /* lista do mês */
+  .day-head { font-size: 12px; margin: 0 4px 6px; }
+  .row { padding-left: 10px; }
+  .avatar { width: 38px; height: 38px; font-size: 18px; margin-right: 10px; }
+  .avatar .badge { width: 17px; height: 17px; }
+  .row-main { min-height: 56px; padding: 10px 12px 10px 0; gap: 8px; }
+  .desc { font-size: 15px; }
+  .sub { font-size: 12px; }
+  .amount { font-size: 15px; }
+  .pill { font-size: 10.5px; padding: 1px 7px; }
+  .hint-line { font-size: 11.5px; }
+  .chip { padding: 7px 12px; font-size: 13px; }
+  .alert { padding: 10px 12px; font-size: 13px; }
+  .filter-bar { font-size: 13px; padding: 9px 12px; }
+
+  /* contas */
+  .acc-card { min-height: 100px; padding: 15px; border-radius: 18px; }
+  .acc-card .bal { font-size: 24px; }
+
+  /* análises */
+  .card-head2 { gap: 10px; margin-bottom: 10px; }
+  .head-ic { width: 32px; height: 32px; border-radius: 10px; }
+  .head-ic svg { width: 17px; height: 17px; }
+  .head-txt small { font-size: 11.5px; }
+  .big-total { font-size: 23px; }
+  .rank li { padding: 6px 0; gap: 10px; }
+  .rank .avatar { width: 36px; height: 36px; font-size: 17px; }
+  .rank-top { font-size: 14.5px; }
+  .rank-meta { font-size: 11.5px; }
+  .delta { font-size: 11px; padding: 1px 7px; }
+  .nat-tile { padding: 9px 8px; border-radius: 13px; }
+  .nat-tile b { font-size: 14px; }
+  .insight { font-size: 13px; padding: 10px 12px; }
+  .bal-sum { padding: 10px 12px; }
+  .bal-sum b { font-size: 15px; }
+  .flow-detail { padding: 9px 10px; }
+  .fd-grid > span b { font-size: 14px; }
+  .seg button { font-size: 13px; padding: 7px 10px; }
+  table { font-size: 12.5px; }
+
+  /* ajustes */
+  .ios-row { min-height: 50px; padding: 11px 14px; font-size: 15px; }
+  .ios-row .ic { width: 30px; height: 30px; font-size: 16px; }
+  .section-label { font-size: 12px; }
+
+  /* barra de navegação */
+  .tabbar { height: 58px; border-radius: 20px; left: 10px; right: 10px; grid-template-columns: 1fr 1fr 66px 1fr 1fr; }
+  .tabbar button.tab { font-size: 10px; }
+  .tabbar button.tab svg { width: 21px; height: 21px; }
+  .tabbar .plus { width: 52px; height: 52px; border-radius: 18px; margin-top: -22px; }
+  .tabbar .plus svg { width: 25px; height: 25px; }
+
+  /* folhas (campos continuam ≥ 16px) */
+  .sheet { padding-left: 14px; padding-right: 14px; gap: 13px; }
+  .sheet h2 { font-size: 18px; }
+  .sheet .money-field input { font-size: 30px; min-height: 56px; }
+  .sheet input:not([type="checkbox"]), .sheet select { font-size: 16px; min-height: 46px; padding: 10px 12px; }
+  .btn { min-height: 48px; font-size: 15.5px; }
+}
