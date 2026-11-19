@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import * as db from "./db";
-import { defaultRecords } from "./defaults";
+import { DEFAULTS_VERSION, defaultRecords } from "./defaults";
 import { indexData, type Data, type Item } from "./engine";
 import type { Account, Category, Property, Rec } from "./model";
 import { thisMonth } from "./dates";
@@ -53,12 +53,17 @@ export function App() {
   useEffect(() => {
     (async () => {
       let rs = await db.getAll();
-      // 1º uso: categorias sugeridas + conta principal (ids fixos, ver defaults.ts)
-      if (!(await db.getMeta<boolean>("seeded"))) {
-        const have = new Set(rs.map((r) => r.id));
-        const seed = defaultRecords(Date.now()).filter((r) => !have.has(r.id));
-        await db.putMany(seed);
-        await db.setMeta("seeded", true);
+      // Dados iniciais (categorias sugeridas + conta principal, ids fixos — ver defaults.ts).
+      // 1º uso: tudo. Versões novas: só os padrões que ainda não existem neste aparelho.
+      const seeded = await db.getMeta<boolean | number>("seeded");
+      const version = seeded === true ? 1 : typeof seeded === "number" ? seeded : 0;
+      if (version < DEFAULTS_VERSION) {
+        const have = new Set(rs.map((r) => r.id)); // inclui excluídos: padrão apagado de propósito não volta
+        // …nem categoria que o usuário já criou com o mesmo nome e tipo
+        const named = new Set(rs.filter((r) => r.t === "category" && !r.deleted).map((r) => r.t === "category" ? `${r.type}|${r.name.toLowerCase()}` : ""));
+        const seed = defaultRecords(Date.now()).filter((r) => !have.has(r.id) && !(r.t === "category" && named.has(`${r.type}|${r.name.toLowerCase()}`)));
+        if (seed.length) await db.putMany(seed);
+        await db.setMeta("seeded", DEFAULTS_VERSION);
         rs = [...rs, ...seed];
       }
       setRecords(rs);
@@ -99,7 +104,7 @@ export function App() {
     },
     clear: async () => {
       await db.clearAll();
-      await db.setMeta("seeded", false);
+      await db.setMeta("seeded", 0);
       location.reload();
     },
     openTxn: setTxnSheet,

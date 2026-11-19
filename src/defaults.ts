@@ -22,6 +22,7 @@ const CATS: [string, string, Flow, string][] = [
   ["impostos", "Impostos e taxas", "expense", "🧾"],
   ["seguros", "Seguros", "expense", "🛡️"],
   ["presentes", "Presentes", "expense", "🎁"],
+  ["investimentos", "Investimentos", "expense", "💹"], // padrão desde a versão 2 dos dados iniciais
   ["outros-d", "Outros", "expense", "📦"],
   ["salario", "Salário", "income", "💼"],
   ["13-ferias", "13º e férias", "income", "🏖️"],
@@ -30,6 +31,12 @@ const CATS: [string, string, Flow, string][] = [
   ["reembolso", "Reembolso", "income", "↩️"],
   ["outros-r", "Outros", "income", "📦"],
 ];
+
+/**
+ * Versão dos dados iniciais. Ao acrescentar um padrão novo, suba o número: aparelhos que já usam o app
+ * recebem só o que falta (por id — um padrão excluído pelo usuário tem marca de exclusão e não volta).
+ */
+export const DEFAULTS_VERSION = 2;
 
 export function defaultRecords(now: number): (Category | Account)[] {
   return [

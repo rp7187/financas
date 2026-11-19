@@ -1,5 +1,5 @@
 // Service worker: guarda o app para funcionar sem internet.
-// Páginas: rede primeiro (pega versões novas), cache se offline. Arquivos (JS/CSS/ícones): cache primeiro.
+// Páginas: rede primeiro, sempre revalidando (pega versões novas na hora), cache se offline. Arquivos (JS/CSS/ícones): cache primeiro.
 const CACHE = "financas-v1";
 const SHELL = ["./", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
@@ -24,7 +24,8 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET" || new URL(req.url).origin !== location.origin) return;
   if (req.mode === "navigate") {
     e.respondWith(
-      fetch(req)
+      // no-cache: sempre confere com o servidor (senão o cache HTTP pode servir a página da versão anterior)
+      fetch(req.url, { cache: "no-cache", credentials: "same-origin" })
         .then((res) => {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put("./", copy));
