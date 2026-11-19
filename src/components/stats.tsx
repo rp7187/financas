@@ -16,9 +16,24 @@ const LENGTHS = [
 type Len = (typeof LENGTHS)[number]["n"];
 
 const range = (start: string, n: number) => Array.from({ length: n }, (_, i) => addMonths(start, i));
-/** Período "passado" termina no mês atual; "futuro" começa no próximo. */
-const pastStart = (n: number) => addMonths(thisMonth(), -(n - 1));
-const futureStart = () => addMonths(thisMonth(), 1);
+/**
+ * Atalhos de período (N = duração):
+ *  - Passado: N meses já fechados, terminando no mês anterior
+ *  - Atual:   N meses terminando no mês atual (com 1 mês = este mês)
+ *  - Futuro:  N meses a partir do próximo mês (só previsto)
+ */
+type Mode = "past" | "current" | "future";
+const startFor = (mode: Mode, n: number) => {
+  const cur = thisMonth();
+  return mode === "past" ? addMonths(cur, -n) : mode === "current" ? addMonths(cur, -(n - 1)) : addMonths(cur, 1);
+};
+const modeOf = (start: string, n: number): Mode | null =>
+  (["past", "current", "future"] as const).find((m) => startFor(m, n) === start) ?? null;
+const MODE_LABEL: Record<Mode, (n: number) => string> = {
+  past: (n) => (n === 1 ? "Mês passado" : "Passado"),
+  current: (n) => (n === 1 ? "Este mês" : "Até este mês"),
+  future: (n) => (n === 1 ? "Próximo mês" : "Futuro"),
+};
 
 // Lembra o período escolhido ao trocar de aba (a tela é desmontada).
 let remembered: { n: Len; start: string } | null = null;
@@ -38,7 +53,7 @@ export function Stats({ store }: { store: Store }) {
   const months = range(start, n);
   const end = months[months.length - 1];
   const prevMonths = range(addMonths(start, -n), n);
-  const when = end < cur ? "passado" : start > cur ? "futuro · previsto" : n === 1 ? "mês atual" : "inclui o mês atual";
+  const when = end < cur ? "já fechado" : start > cur ? "previsto" : n === 1 ? "em andamento" : "inclui o mês atual (em andamento)";
   const label = n === 1 ? monthLong(start) : `${monthShort(start)} – ${monthShort(end)}`;
   // Meses "com histórico": do 1º lançamento em diante (médias não são diluídas por meses sem uso do app).
   const firstData = [...data.txns.map((t) => t.date.slice(0, 7)), ...data.rules.map((r) => r.startMonth)].sort()[0] ?? cur;
@@ -107,7 +122,7 @@ export function Stats({ store }: { store: Store }) {
         <div class="seg wide" role="group" aria-label="Duração do período">
           {LENGTHS.map((l) => (
             <button key={l.n} type="button" class={n === l.n ? "on" : ""} aria-pressed={n === l.n}
-              onClick={() => setPeriod({ n: l.n, start: l.n === 1 ? (start > cur ? futureStart() : cur) : start > cur ? futureStart() : pastStart(l.n) })}>{l.label}</button>
+              onClick={() => setPeriod({ n: l.n, start: startFor(modeOf(start, n) ?? "current", l.n) })}>{l.label}</button>
           ))}
         </div>
         <div class="mini-nav">
@@ -115,15 +130,19 @@ export function Stats({ store }: { store: Store }) {
           <span class="period-label"><b>{label}</b><small>{when}</small></span>
           <button type="button" class="icon-btn" aria-label="Próximo período" onClick={() => setPeriod({ n, start: addMonths(start, n) })}><Icon name="chevR" /></button>
         </div>
-        <div class="quick">
-          <button type="button" class={`chip ${end === cur ? "on" : ""}`} onClick={() => setPeriod({ n, start: pastStart(n) })}>Passado{n > 1 ? ` (últimos ${n === 12 ? "12" : n})` : " (este mês)"}</button>
-          <button type="button" class={`chip ${start === futureStart() ? "on" : ""}`} onClick={() => setPeriod({ n, start: futureStart() })}>Futuro{n > 1 ? ` (próximos ${n === 12 ? "12" : n})` : " (próximo mês)"}</button>
+        <div class="quick" role="group" aria-label="Atalhos de período">
+          {(["past", "current", "future"] as const).map((m) => (
+            <button key={m} type="button" class={`chip ${modeOf(start, n) === m ? "on" : ""}`} aria-pressed={modeOf(start, n) === m}
+              onClick={() => setPeriod({ n, start: startFor(m, n) })}>{MODE_LABEL[m](n)}</button>
+          ))}
         </div>
         <div class="period-sum">
           <div><span>Receitas</span><b class="num income">{money(tot.income)}</b><small>{vsPrev(tot.income, prevTot.income)}</small></div>
           <div><span>Despesas</span><b class="num expense">{money(tot.expense)}</b><small>{vsPrev(tot.expense, prevTot.expense)}</small></div>
           <div><span>Resultado</span><b class={`num ${result < 0 ? "expense" : ""}`}>{money(result)}</b><small>{tot.income ? `${pct(result, tot.income)}% das receitas` : ""}</small></div>
-          <div><span>Despesa média</span><b class="num">{money(Math.round(tot.expense / avgMonths))}</b><small>por mês{avgNote}</small></div>
+          {n === 1
+            ? <div><span>Falta pagar</span><b class="num">{money(tot.expense - tot.expensePaid)}</b><small>{tot.expense === tot.expensePaid ? (tot.expense ? "tudo pago" : "") : `pago ${money(tot.expensePaid)}`}</small></div>
+            : <div><span>Despesa média</span><b class="num">{money(Math.round(tot.expense / avgMonths))}</b><small>por mês{avgNote}</small></div>}
         </div>
       </section>
 
