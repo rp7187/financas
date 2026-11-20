@@ -12,6 +12,7 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
   const [emoji, setEmoji] = useState(cat?.emoji ?? "📦");
   // nova categoria: próxima cor da paleta (pela quantidade existente) — fica gravada e não muda com o ranking
   const [color, setColor] = useState(cat ? colorOf(cat) : PALETTE[store.data.categories.length % PALETTE.length]);
+  const [purpose, setPurpose] = useState<"cost" | "investment">(cat?.purpose ?? "cost");
   const [error, setError] = useState<string | null>(null);
   const used = cat ? store.data.txns.some((t) => t.categoryId === cat.id) || store.data.rules.some((r) => r.categoryId === cat.id) : false;
 
@@ -20,7 +21,7 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
     const n = name.trim();
     if (!n) return setError("Informe o nome.");
     if (store.data.categories.some((c) => c.id !== cat?.id && c.type === type && c.name.toLowerCase() === n.toLowerCase())) return setError("Já existe uma categoria com esse nome.");
-    await store.put([{ ...(cat ?? { id: uid(), t: "category", updatedAt: 0 }), name: n, type, emoji, color } as Category]);
+    await store.put([{ ...(cat ?? { id: uid(), t: "category", updatedAt: 0 }), name: n, type, emoji, color, ...(type === "expense" ? { purpose } : { purpose: undefined }) } as Category]);
     onClose();
   }
 
@@ -46,6 +47,16 @@ export function CategorySheet({ store, target, onClose }: { store: Store; target
           {EMOJIS.map((e) => <button key={e} type="button" class={`emoji-btn ${emoji === e ? "on" : ""}`} aria-pressed={emoji === e} onClick={() => setEmoji(e)}>{e}</button>)}
         </div>
       </div>
+      {type === "expense" && (
+        <div class="field">
+          <span class="label">Essa despesa é</span>
+          <div class="seg wide" role="group" aria-label="Custo ou investimento">
+            <button type="button" class={purpose === "cost" ? "on" : ""} aria-pressed={purpose === "cost"} onClick={() => setPurpose("cost")}>Custo</button>
+            <button type="button" class={purpose === "investment" ? "on" : ""} aria-pressed={purpose === "investment"} onClick={() => setPurpose("investment")}>Investimento</button>
+          </div>
+          <p class="muted small hint">{purpose === "investment" ? "Constrói patrimônio (ex.: aplicações, imóvel na planta, estudos). Aparece separado nas Análises." : "Custo de vida: consumo do dia a dia e contas da casa."}</p>
+        </div>
+      )}
       <ColorPicker value={color} onChange={setColor} />
       {cat && used && <p class="muted small">Categorias em uso não são excluídas, só arquivadas (somem da lista de escolha; o histórico continua).</p>}
       {error && <p class="error" role="alert">{error}</p>}

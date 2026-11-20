@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import * as db from "./db";
-import { DEFAULTS_VERSION, defaultRecords } from "./defaults";
+import { DEFAULTS_VERSION, MERGES, PURPOSES, RENAMES, defaultRecords } from "./defaults";
 import { indexData, type Data, type Item } from "./engine";
-import type { Account, Category, Property, Rec } from "./model";
+import type { Category, Property, Rec } from "./model";
 import { thisMonth } from "./dates";
 import { MonthView } from "./components/month";
 import { Accounts } from "./components/accounts";
 import { Stats } from "./components/stats";
 import { Settings } from "./components/settings";
 import { TxnSheet, type TxnDraft } from "./components/txn-sheet";
-import { AccountSheet } from "./components/account-sheet";
+import { AccountSheet, type AccountTarget } from "./components/account-sheet";
 import { CategorySheet } from "./components/category-sheet";
 import { PropertySheet } from "./components/property-sheet";
 import { Icon, type IconName } from "./components/icons";
@@ -27,7 +27,7 @@ export type Store = {
   importRecords: (rs: Rec[]) => Promise<number>;
   clear: () => Promise<void>;
   openTxn: (x: Item | TxnDraft) => void;
-  openAccount: (a: Account | null) => void;
+  openAccount: (a: AccountTarget) => void;
   openCategory: (c: Category | { type: Category["type"] }) => void;
   openProperty: (p: Property | null) => void;
 };
@@ -68,13 +68,49 @@ async function applyDefaults(rs: Rec[]): Promise<Rec[]> {
   return [...map.values()];
 }
 
+/**
+ * Unificações e renomeações de padrões, para aparelhos que estavam numa versão anterior dos dados iniciais.
+ * Unificar só acontece se a categoria de destino existir e não estiver excluída (senão nada é movido).
+ */
+async function migrateDefaults(rs: Rec[], version: number): Promise<Rec[]> {
+  const now = Date.now();
+  const byId = new Map(rs.map((r) => [r.id, r]));
+  const changes = new Map<string, Rec>();
+  const cur = (id: string) => changes.get(id) ?? byId.get(id);
+  for (const m of MERGES) {
+    if (version >= m.since) continue;
+    const from = cur(m.from), to = cur(m.to);
+    if (!from || from.deleted || !to || to.deleted) continue;
+    for (const r of rs) {
+      if ((r.t === "txn" || r.t === "rule" || r.t === "plan") && r.categoryId === m.from) {
+        changes.set(r.id, { ...(cur(r.id) as typeof r), categoryId: m.to, updatedAt: now });
+      }
+    }
+    changes.set(from.id, { ...from, deleted: true, updatedAt: now });
+  }
+  for (const n of RENAMES) {
+    if (version >= n.since) continue;
+    const c = cur(n.id);
+    if (c && c.t === "category" && !c.deleted && c.name.trim() === n.from) changes.set(c.id, { ...c, name: n.to, updatedAt: now });
+  }
+  for (const p of PURPOSES) {
+    if (version >= p.since) continue;
+    const c = cur(p.id);
+    if (c && c.t === "category" && !c.deleted && !c.purpose) changes.set(c.id, { ...c, purpose: p.purpose, updatedAt: now });
+  }
+  if (!changes.size) return rs;
+  await db.putMany([...changes.values()]);
+  for (const c of changes.values()) byId.set(c.id, c);
+  return [...byId.values()];
+}
+
 export function App() {
   const [records, setRecords] = useState<Rec[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("month");
   const [month, setMonth] = useState(thisMonth());
   const [txnSheet, setTxnSheet] = useState<Item | TxnDraft | null>(null);
-  const [accountSheet, setAccountSheet] = useState<Account | null | undefined>(undefined);
+  const [accountSheet, setAccountSheet] = useState<AccountTarget | undefined>(undefined);
   const [categorySheet, setCategorySheet] = useState<Category | { type: Category["type"] } | null>(null);
   const [propertySheet, setPropertySheet] = useState<Property | null | undefined>(undefined);
 
@@ -86,6 +122,7 @@ export function App() {
       const seeded = await db.getMeta<boolean | number>("seeded");
       const version = seeded === true ? 1 : typeof seeded === "number" ? seeded : 0;
       if (version < DEFAULTS_VERSION) {
+        if (version > 0) rs = await migrateDefaults(rs, version);
         rs = await applyDefaults(rs);
         await db.setMeta("seeded", DEFAULTS_VERSION);
       }

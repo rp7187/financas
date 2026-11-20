@@ -45,3 +45,5 @@ export const monthShort = (month: string) => {
 export const dayLabel = (iso: string) => utc(iso).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" }).replace(".", "");
 /** "19/11/26" */
 export const fmtDate = (iso: string) => utc(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "UTC" });
+/** "19/11" */
+export const dayMonth = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;

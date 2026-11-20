@@ -2,10 +2,11 @@ import { useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type { Store } from "../app";
 import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
-import { balanceByMonth, byCategory, byProperty, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
-import { PROPERTY_KIND, colorOf, money, moneyCompact, reais, signedMoney } from "../model";
+import { balanceByMonth, byCategory, byProperty, byPurpose, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
+import { PROPERTY_KIND, colorOf, isInvestment, money, moneyCompact, reais, signedMoney } from "../model";
 import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName } from "./icons";
+import { Simulator } from "./simulator";
 
 /** Duração do período analisado, em meses. */
 const LENGTHS = [
@@ -45,6 +46,7 @@ export function Stats({ store }: { store: Store }) {
   const [flow, setFlow] = useState<"expense" | "income">("expense");
   const [table, setTable] = useState(false);
   const [natTable, setNatTable] = useState(false);
+  const [purTable, setPurTable] = useState(false);
   const [period, setPeriodState] = useState<{ n: Len; start: string }>(remembered ?? { n: 1, start: store.month });
   const setPeriod = (p: { n: Len; start: string }) => { remembered = p; setPeriodState(p); };
   const acc = accountId || undefined;
@@ -72,7 +74,9 @@ export function Stats({ store }: { store: Store }) {
   // Resumo do período
   const tot = monthTotals(items, acc);
   const prevTot = monthTotals(prevItems, acc);
-  const result = tot.income - tot.expense;
+  // despesas do período incluem a estimativa de gastos variáveis ainda não lançados (mês atual e futuros)
+  const expenseAll = tot.expense + tot.estimate;
+  const result = tot.income - expenseAll;
 
   // Por categoria
   const cats = byCategory(items, flow, acc);
@@ -91,7 +95,7 @@ export function Stats({ store }: { store: Store }) {
     const its = monthItems(data, m);
     const t = monthTotals(its, acc);
     const nt = expenseByNature(its, acc);
-    return { month: m, income: t.income, expense: t.expense, committed: nt.fixed + nt.installment };
+    return { month: m, income: t.income, expense: t.expense + t.estimate, committed: nt.fixed + nt.installment };
   });
   const balance = balanceByMonth(data, chartMonths[0], chartMonths[chartMonths.length - 1], acc);
   const flowRows = perMonth.map((r, i) => ({ ...r, balance: balance[i].balance }));
@@ -116,9 +120,15 @@ export function Stats({ store }: { store: Store }) {
     .sort((a, b) => b.total - a.total);
   const propMax = Math.max(1, ...propRows.map((r) => r.total));
 
+  // Custo × investimento
+  const pur = byPurpose(data, items, acc);
+  const purPrev = byPurpose(data, prevItems, acc);
+  const purTotal = pur.cost + pur.investment;
+  const purRows = chartMonths.map((m) => ({ month: m, ...byPurpose(data, filterAcc(monthItems(data, m)), acc) }));
+
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
   const vsPrev = (v: number, p: number) => (p ? `${signedMoney(v - p)} vs ${prevLabel}` : "");
-  const ratio = tot.income > 0 ? tot.expense / tot.income : tot.expense > 0 ? 1.01 : 0;
+  const ratio = tot.income > 0 ? expenseAll / tot.income : expenseAll > 0 ? 1.01 : 0;
   const hasPrev = prevTot.income + prevTot.expense > 0;
 
   return (
@@ -154,6 +164,7 @@ export function Stats({ store }: { store: Store }) {
           {tot.income ? <><b>{pct(result, tot.income)}%</b> das receitas {result >= 0 ? "sobram" : "faltam"}</> : "sem receitas no período"}
           {hasPrev && <> · {signedMoney(result - (prevTot.income - prevTot.expense))} vs {prevLabel}</>}
         </div>
+        {pur.investment > 0 && <div class="hero-sub">Investido no período <b class="num">{money(pur.investment)}</b> (já descontado do resultado)</div>}
         <div class="hero-tiles">
           <div class="tile">
             <span class="tile-head"><span class="tile-icon in"><Icon name="down" /></span>Receitas</span>
@@ -162,8 +173,8 @@ export function Stats({ store }: { store: Store }) {
           </div>
           <div class="tile">
             <span class="tile-head"><span class="tile-icon out"><Icon name="up" /></span>Despesas</span>
-            <b class="num">{money(tot.expense)}</b>
-            <small>{vsPrev(tot.expense, prevTot.expense) || " "}</small>
+            <b class="num">{money(expenseAll)}</b>
+            <small>{tot.estimate ? `inclui ${moneyCompact(tot.estimate)} estimado` : vsPrev(tot.expense, prevTot.expense) || " "}</small>
           </div>
         </div>
         {(tot.income > 0 || tot.expense > 0) && (
@@ -173,8 +184,8 @@ export function Stats({ store }: { store: Store }) {
             <div class="spend-text">
               <span>{tot.income > 0 ? `despesas = ${Math.round(ratio * 100)}% das receitas` : "sem receitas"}</span>
               {n === 1
-                ? <span>falta pagar <b class="num">{money(tot.expense - tot.expensePaid)}</b></span>
-                : <span>média <b class="num">{money(Math.round(tot.expense / avgMonths))}</b>/mês{avgNote}</span>}
+                ? <span>falta pagar <b class="num">{money(tot.expense - tot.expensePaid + tot.bills)}</b></span>
+                : <span>média <b class="num">{money(Math.round(expenseAll / avgMonths))}</b>/mês{avgNote}</span>}
             </div>
           </div>
         )}
@@ -210,7 +221,7 @@ export function Stats({ store }: { store: Store }) {
               <li key={c.categoryId}>
                 <span class={`avatar ${col}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>
                 <div class="rank-main">
-                  <div class="rank-top"><span class="name">{cat?.name ?? "Sem categoria"}</span><b class="num">{money(c.amount)}</b></div>
+                  <div class="rank-top"><span class="name">{cat?.name ?? "Sem categoria"}{isInvestment(cat) && <span class="inv-tag">invest.</span>}</span><b class="num">{money(c.amount)}</b></div>
                   <div class="hbar"><div class={`fill ${col}`} style={{ width: `${(c.amount / cats[0].amount) * 100}%` }} /></div>
                   <div class="rank-meta">
                     <span>{pct(c.amount, totalCat)}%{n > 1 ? ` · ${money(Math.round(c.amount / avgMonths))}/mês` : ""}</span>
@@ -221,6 +232,49 @@ export function Stats({ store }: { store: Store }) {
             );
           })}
         </ul>
+      </section>
+
+      {/* ---------- Custo × investimento ---------- */}
+      <section class="card">
+        <CardHead icon="trend" tone="income" title="Custo × investimento" sub="Custo de vida × o que constrói patrimônio" />
+        {purTotal === 0 ? <p class="muted small">Sem despesas no período.</p> : (
+          <>
+            <div class="stack" role="img" aria-label={`Custo ${pct(pur.cost, purTotal)}%, investimento ${pct(pur.investment, purTotal)}%`}>
+              {pur.cost > 0 && <div class="seg-cost" style={{ flexGrow: pur.cost }} />}
+              {pur.investment > 0 && <div class="seg-inv" style={{ flexGrow: pur.investment }} />}
+            </div>
+            <div class="purpose-tiles">
+              {([["cost", "Custo", "cost"], ["investment", "Investimento", "inv"]] as const).map(([k, l, sw]) => (
+                <div key={k} class="nat-tile">
+                  <span class="nat-head"><i class={`sw ${sw}`} />{l}</span>
+                  <b class="num">{moneyCompact(pur[k])}</b>
+                  <small>{tot.income ? `${pct(pur[k], tot.income)}% das receitas` : `${pct(pur[k], purTotal)}% das despesas`}{n > 1 ? ` · ${moneyCompact(Math.round(pur[k] / avgMonths))}/mês` : ""}</small>
+                  {purPrev.cost + purPrev.investment > 0 && <Delta v={pur[k] - purPrev[k]} flow={k === "investment" ? "income" : "expense"} compact />}
+                </div>
+              ))}
+            </div>
+            {tot.income > 0 && (
+              <div class="insight">
+                <Icon name="sparkle" />
+                <p>{pur.investment > 0
+                  ? <>Somando o que sobrou com o que foi investido, <b class="num">{money(result + pur.investment)}</b> (<b>{pct(result + pur.investment, tot.income)}%</b> das receitas) ficaram para o futuro.</>
+                  : <>Nenhuma despesa de investimento no período. Marque categorias como investimento em Ajustes → Categorias.</>}</p>
+              </div>
+            )}
+          </>
+        )}
+        <div class="sub-head"><span>{n === 1 ? `6 meses até ${monthShort(start)}` : "Mês a mês"}</span>
+          <button type="button" class="link" onClick={() => setPurTable(!purTable)}>{purTable ? "ocultar tabela" : "ver tabela"}</button></div>
+        {purTable && (
+          <div class="table-wrap">
+            <table class="ptable">
+              <thead><tr><th>R$</th><th>Custo</th><th>Invest.</th><th>% invest.</th></tr></thead>
+              <tbody>{purRows.map((r) => (
+                <tr key={r.month}><td>{monthShort(r.month)}</td><td>{reais(r.cost)}</td><td>{reais(r.investment)}</td><td>{pct(r.investment, r.cost + r.investment)}%</td></tr>
+              ))}</tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* ---------- Fixas × variáveis ---------- */}
@@ -306,10 +360,13 @@ export function Stats({ store }: { store: Store }) {
                   <td class={r.income - r.expense < 0 ? "expense" : ""}>{reais(r.income - r.expense)}</td><td>{reais(r.balance)}</td></tr>
               ))}</tbody>
             </table>
-            <p class="muted small">° meses futuros (previsto: recorrentes, parcelas e pendentes).</p>
+            <p class="muted small">° meses futuros (previsto: recorrentes, parcelas, pendentes e gastos variáveis estimados{data.variable.months ? ` — média de ${money(data.variable.avg)}/mês` : ""}).</p>
           </div>
         )}
       </section>
+
+      {/* ---------- Simulação ---------- */}
+      <Simulator store={store} />
     </>
   );
 }

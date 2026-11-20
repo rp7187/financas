@@ -38,8 +38,9 @@
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
+/* Tema escuro: automático (aparelho) ou escolhido em Ajustes (data-theme no <html>). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #0c0e13;
     --surface: #171a21;
@@ -69,6 +70,36 @@
     --shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
     --shadow-lg: 0 10px 30px rgb(0 0 0 / 0.5);
   }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0c0e13;
+  --surface: #171a21;
+  --surface-2: #20242d;
+  --surface-3: #2a2f3a;
+  --border: rgb(255 255 255 / 0.07);
+  --text: #f1f2f6;
+  --text-2: #b9bfcc;
+  --muted: #8a91a2;
+  --income: #199e70;
+  --expense: #d95926;
+  --income-text: #3fbf8a;
+  --expense-text: #f08a5d;
+  --line: #8b85f7;
+  --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500; --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+  --fixed: #3987e5;
+  --installment: #d55181;
+  --variable: #c98500;
+  --brand: #7c74f5;
+  --brand-2: #a78bfa;
+  --hero: linear-gradient(140deg, #17153a 0%, #2e2a85 50%, #5b21b6 100%);
+  --warn: #f2c46d;
+  --warn-bg: rgb(242 196 109 / 0.12);
+  --danger: #ef7474;
+  --primary: #f1f2f6;
+  --on-primary: #0c0e13;
+  --shadow: 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-lg: 0 10px 30px rgb(0 0 0 / 0.5);
 }
 
 * { box-sizing: border-box; }
@@ -254,19 +285,19 @@ button.tile:active { transform: scale(0.98); }
 .sheet { width: 100%; background: var(--surface); border-radius: 28px 28px 0 0; padding: 10px 18px calc(env(safe-area-inset-bottom) + 18px); display: flex; flex-direction: column; gap: 16px; max-height: 94vh; overflow-y: auto; }
 .sheet::before { content: ""; width: 40px; height: 5px; border-radius: 999px; background: var(--surface-3); margin: 0 auto 2px; flex: none; }
 .sheet h2 { margin: 0; font-size: 20px; }
-.sheet label, .label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.sheet label, .sim label, .label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: var(--text-2); }
 .field { display: flex; flex-direction: column; gap: 8px; }
-.sheet input:not([type="checkbox"]), .sheet select { background: var(--surface-2); border: 1.5px solid transparent; border-radius: 14px; padding: 12px 14px; font-size: 17px; font-weight: 500; min-height: 50px; width: 100%; color: var(--text); outline: none; }
-.sheet input:focus, .sheet select:focus { border-color: var(--brand); background: var(--surface); }
-.sheet label.toggle { flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; font-weight: 550; color: var(--text); background: var(--surface-2); border-radius: 14px; padding: 12px 14px; }
-.sheet label.toggle input { appearance: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-3); position: relative; margin: 0; cursor: pointer; transition: background 0.2s; flex: none; }
-.sheet label.toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.2); transition: transform 0.2s; }
-.sheet label.toggle input:checked { background: var(--income); }
-.sheet label.toggle input:checked::after { transform: translateX(20px); }
+.sheet input:not([type="checkbox"]), .sheet select, .sim input:not([type="checkbox"]), .sim select { background: var(--surface-2); border: 1.5px solid transparent; border-radius: 14px; padding: 12px 14px; font-size: 17px; font-weight: 500; min-height: 50px; width: 100%; color: var(--text); outline: none; }
+.sheet input:focus, .sheet select:focus, .sim input:focus, .sim select:focus { border-color: var(--brand); background: var(--surface); }
+.sheet label.toggle, .sim label.toggle { flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; font-weight: 550; color: var(--text); background: var(--surface-2); border-radius: 14px; padding: 12px 14px; }
+.sheet label.toggle input, .sim label.toggle input { appearance: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-3); position: relative; margin: 0; cursor: pointer; transition: background 0.2s; flex: none; }
+.sheet label.toggle input::after, .sim label.toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.2); transition: transform 0.2s; }
+.sheet label.toggle input:checked, .sim label.toggle input:checked { background: var(--income); }
+.sheet label.toggle input:checked::after, .sim label.toggle input:checked::after { transform: translateX(20px); }
 .money-field { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 18px; padding: 4px 16px; }
 .money-field span { font-size: 22px; color: var(--muted); font-weight: 600; }
-.sheet .money-field input { border: 0; background: transparent; font-family: var(--num); font-size: 34px; font-weight: 750; padding: 8px 0; min-height: 64px; letter-spacing: -0.02em; }
-.sheet .money-field input:focus { background: transparent; }
+.sheet .money-field input, .sim .money-field input { border: 0; background: transparent; font-family: var(--num); font-size: 34px; font-weight: 750; padding: 8px 0; min-height: 64px; letter-spacing: -0.02em; }
+.sheet .money-field input:focus, .sim .money-field input:focus { background: transparent; }
 .hint { margin: -10px 4px 0; }
 .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .choices { display: flex; flex-direction: column; gap: 10px; }
@@ -456,7 +487,8 @@ tr:last-child td { border-bottom: 0; }
 .sel-band { fill: color-mix(in srgb, var(--brand) 8%, transparent); }
 .panel-title { fill: var(--text-2); font-size: 11px; font-weight: 700; }
 .bar.future { opacity: 0.72; }
-@media (prefers-color-scheme: dark) { .bar.future { opacity: 0.85; } }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bar.future { opacity: 0.85; } }
+:root[data-theme="dark"] .bar.future { opacity: 0.85; }
 .tick.selx { fill: var(--brand); font-weight: 700; }
 .flow-legend { flex-wrap: wrap; margin-top: 6px; gap: 6px 14px; }
 
@@ -672,3 +704,65 @@ tr:last-child td { border-bottom: 0; }
 .cdot.c6 { background: var(--c6); }
 .cdot.c7 { background: var(--c7); }
 .cdot.c8 { background: var(--c8); }
+
+/* Contas e cartões */
+.section-head { display: flex; justify-content: space-between; align-items: center; margin: 6px 0 -4px; }
+.section-head .section-label { margin: 0 6px; }
+.empty-note { text-align: center; margin: 0; padding: 4px 12px; }
+.acc-card.credit .top span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+.acc-card.credit .top .i { width: 18px; height: 18px; }
+.acc-card .cap { font-size: 12px; opacity: 0.85; position: relative; z-index: 1; }
+.acc-card .foot { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; font-size: 12.5px; opacity: 0.92; position: relative; z-index: 1; }
+.acc-card .foot b { font-weight: 700; }
+.acc-card .foot .warn { background: rgb(255 255 255 / 0.18); border-radius: 999px; padding: 1px 8px; }
+.avatar.oncard .badge { background: var(--brand); }
+.pill.card { background: color-mix(in srgb, var(--brand) 12%, var(--surface)); color: var(--brand); }
+
+/* Custo × investimento */
+.inv-tag { margin-left: 6px; font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: color-mix(in srgb, var(--income) 16%, var(--surface)); color: var(--income-text); }
+.row.estimate { opacity: 0.85; }
+.row.estimate .row-main.static { cursor: default; display: flex; align-items: center; justify-content: space-between; flex: 1; min-width: 0; }
+.avatar.est { background: var(--surface-2); color: var(--muted); font-weight: 700; border: 1.5px dashed var(--surface-3); cursor: default; }
+.sw.cost, .seg-cost { background: var(--expense); }
+.sw.inv, .seg-inv { background: var(--income); }
+
+/* Simulação */
+.sim .two { align-items: end; }
+.verdict { display: flex; flex-direction: column; gap: 3px; margin: 14px 0 4px; padding: 12px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; color: var(--text-2); }
+.verdict b { font-size: 16px; color: var(--text); }
+.verdict.good { background: color-mix(in srgb, var(--income) 14%, var(--surface)); }
+.verdict.good b { color: var(--income-text); }
+.verdict.warn { background: var(--warn-bg); }
+.verdict.warn b { color: var(--warn); }
+.verdict.bad { background: color-mix(in srgb, var(--danger) 14%, var(--surface)); }
+.verdict.bad b { color: var(--danger); }
+.sim-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.sim-grid div { background: var(--surface-2); border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sim-grid span { font-size: 12px; color: var(--muted); font-weight: 600; }
+.sim-grid b { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-grid small { font-size: 11.5px; color: var(--muted); }
+.num.neg, b.neg { color: var(--danger); }
+.commit { margin-bottom: 8px; }
+.commit .sub-head { margin-top: 16px; }
+.commit-row { display: grid; grid-template-columns: 104px 1fr 40px; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; }
+.commit-label { color: var(--text-2); }
+.commit-row b { text-align: right; }
+.commit-bar { display: flex; height: 12px; border-radius: 999px; overflow: hidden; background: var(--surface-2); }
+.commit-bar .cost { background: var(--expense); }
+.commit-bar .inv { background: var(--income); }
+.commit .legend { margin-top: 8px; }
+.sw.base { background: var(--muted); }
+.sw.simline { background: var(--line); }
+.sim-base { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 4; }
+.sim-line { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.sim .btn.wide { margin-top: 12px; }
+
+/* Custo × investimento */
+.purpose-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.ptable td:last-child, .ptable th:last-child { text-align: right; }
+.sim > label, .sim > .two { margin-top: 12px; }
+.sim .money-field { border-radius: 14px; padding: 0 12px; gap: 6px; }
+.sim .money-field span { font-size: 15px; }
+.sim .money-field input { font-size: 20px; min-height: 50px; padding: 6px 0; min-width: 0; }
+.sim input:disabled { opacity: 0.5; }
+.sim label.toggle { font-size: 14.5px; }

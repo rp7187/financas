@@ -1,12 +1,15 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
-import { addMonths, addMonthsToDate, monthLong, monthOf, thisMonth, todayISO } from "../dates";
-import type { Item } from "../engine";
-import { money, splitInstallments, uid, type Flow, type Plan, type Rule, type Txn } from "../model";
+import { addMonths, addMonthsToDate, dayMonth, monthLong, monthOf, thisMonth, todayISO } from "../dates";
+import { bill, billMonthOf, type Item } from "../engine";
+import { isCard, money, splitInstallments, uid, type Account, type Flow, type Plan, type Rule, type Txn } from "../model";
 import { MoneyInput, Sheet } from "./sheet";
 
-/** Novo lançamento (com valores iniciais opcionais). */
-export type TxnDraft = { draft: true; type?: Flow | "transfer"; accountId?: string };
+/** Novo lançamento (com valores iniciais opcionais; ex.: pagamento de fatura já preenchido). */
+export type TxnDraft = {
+  draft: true; type?: Flow | "transfer"; accountId?: string;
+  toAccountId?: string; amount?: number; description?: string; date?: string; billFor?: string;
+};
 type Kind = Flow | "transfer";
 type Repeat = "once" | "monthly" | "installments";
 
@@ -19,17 +22,18 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const accounts = data.accounts.filter((a) => !a.archived || a.id === t?.accountId || a.id === t?.toAccountId);
   const defaultAccount = ("draft" in target && target.accountId) || accounts[0]?.id || "";
   const isNew = !item;
+  const draft = "draft" in target ? target : null;
   // Recorrente: em lançamento novo, a data padrão segue o mês aberto na tela.
   const defaultDate = store.month === thisMonth() ? todayISO() : `${store.month}-01`;
 
   const [type, setType] = useState<Kind>(t?.type ?? ("draft" in target ? target.type : undefined) ?? "expense");
-  const [amount, setAmount] = useState(t?.amount ?? 0);
-  const [description, setDescription] = useState(t?.description ?? "");
+  const [amount, setAmount] = useState(t?.amount ?? draft?.amount ?? 0);
+  const [description, setDescription] = useState(t?.description ?? draft?.description ?? "");
   const [categoryId, setCategoryId] = useState(t?.categoryId ?? "");
   const [accountId, setAccountId] = useState(t?.accountId ?? defaultAccount);
   const [propertyId, setPropertyId] = useState(t?.propertyId ?? "");
-  const [toAccountId, setToAccountId] = useState(t?.toAccountId ?? accounts.find((a) => a.id !== defaultAccount)?.id ?? "");
-  const [date, setDate] = useState(t?.date ?? defaultDate);
+  const [toAccountId, setToAccountId] = useState(t?.toAccountId ?? draft?.toAccountId ?? accounts.find((a) => a.id !== defaultAccount && !isCard(a))?.id ?? "");
+  const [date, setDate] = useState(t?.date ?? draft?.date ?? defaultDate);
   const [paid, setPaid] = useState(t ? t.paid : defaultDate <= todayISO());
   const [repeat, setRepeat] = useState<Repeat>("once");
   const [count, setCount] = useState("2");
@@ -37,6 +41,24 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const [scope, setScope] = useState<"this" | "future">("this");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [billFor, setBillFor] = useState(t?.billFor ?? draft?.billFor ?? "");
+
+  const acct = data.accounts.find((a) => a.id === accountId);
+  const toCard = data.accounts.find((a) => a.id === toAccountId && isCard(a));
+  /** Compra/estorno no cartão: já entra na fatura (não tem "pago"). */
+  const onCard = type !== "transfer" && isCard(acct);
+  const cardBill = onCard && acct!.closingDay && acct!.dueDay && date ? bill(data, acct!, billMonthOf(acct!, date)) : null;
+  const cardBillMonth = onCard && acct!.closingDay && acct!.dueDay && date ? billMonthOf(acct!, date) : null;
+  // pagamento de fatura: faturas próximas da data (as em aberto primeiro) para escolher qual está sendo paga
+  const billChoices = toCard && toCard.closingDay && toCard.dueDay && date
+    ? [-2, -1, 0, 1].map((k) => addMonths(billMonthOf(toCard, date), k)).map((m) => ({ m, b: bill(data, toCard, m) })).filter((x) => x.b || x.m === billFor)
+    : [];
+  const pickBill = (card: Account | undefined, d: string) => {
+    if (!card || !card.closingDay || !card.dueDay) return "";
+    const months = [-2, -1, 0].map((k) => addMonths(billMonthOf(card, d), k));
+    return months.find((m) => (bill(data, card, m)?.remaining ?? 0) > 0) ?? addMonths(billMonthOf(card, d), -1);
+  };
 
   const cats = data.categories.filter((c) => c.type === type && (!c.archived || c.id === categoryId));
   const n = Math.max(0, Math.floor(Number(count) || 0));
@@ -54,7 +76,8 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   }
 
   const base = () => ({
-    type, amount, date, paid,
+    type, amount, date, paid: paid || onCard,
+    billFor: type === "transfer" && toCard && billFor ? billFor : undefined,
     description: description.trim() || (type === "transfer" ? "Transferência" : data.categories.find((c) => c.id === categoryId)?.name ?? ""),
     accountId,
     ...(type === "transfer" ? { toAccountId, categoryId: undefined } : { categoryId, toAccountId: undefined }),
@@ -78,14 +101,14 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         };
         const recs: (Rule | Txn)[] = [rule];
         // 1º mês já pago/recebido: grava o lançamento confirmado desse mês.
-        if (paid) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn);
+        if (paid && !onCard) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn);
         await store.put(recs);
       } else {
         const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(b.propertyId ? { propertyId: b.propertyId } : {}) };
         const today = todayISO();
         const parts = splitInstallments(amount, n).map((v, i): Txn => {
           const d = addMonthsToDate(date, i);
-          return { id: uid(), t: "txn", updatedAt: 0, ...b, amount: v, date: d, paid: paid && d <= today, planId: plan.id, installment: i + 1 } as Txn;
+          return { id: uid(), t: "txn", updatedAt: 0, ...b, amount: v, date: d, paid: onCard || (paid && d <= today), planId: plan.id, installment: i + 1 } as Txn;
         });
         await store.put([plan, ...parts]);
       }
@@ -109,7 +132,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       }
       // este mês: confirma com os valores (se marcado como pago) ou só atualiza o que já existia
       if (!item!.virtual) recs.push({ ...item!.txn, ...b, ruleId: m === r.startMonth ? r.id : recs[1].id, ruleMonth: m });
-      else if (paid) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: m === r.startMonth ? r.id : recs[1].id, ruleMonth: m } as Txn);
+      else if (paid && !onCard) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: m === r.startMonth ? r.id : recs[1].id, ruleMonth: m } as Txn);
       await store.put(recs);
       return onClose();
     }
@@ -204,16 +227,22 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       )}
 
       <div class="two">
-        <label>{type === "transfer" ? "De" : "Conta"}
+        <label>{type === "transfer" ? "De" : data.cards.size ? "Conta ou cartão" : "Conta"}
           <select value={accountId} onChange={(e) => setAccountId(e.currentTarget.value)}>
-            {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            <AccountOptions list={accounts} />
           </select>
         </label>
         {type === "transfer" ? (
           <label>Para
-            <select value={toAccountId} onChange={(e) => setToAccountId(e.currentTarget.value)}>
+            <select value={toAccountId} onChange={(e) => {
+              const id = e.currentTarget.value;
+              setToAccountId(id);
+              const card = data.accounts.find((a) => a.id === id && isCard(a));
+              setBillFor(card ? pickBill(card, date) : "");
+              if (card && !description.trim()) setDescription(`Fatura ${card.name}`);
+            }}>
               <option value="">—</option>
-              {accounts.filter((a) => a.id !== accountId).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+              <AccountOptions list={accounts.filter((a) => a.id !== accountId)} />
             </select>
           </label>
         ) : (
@@ -221,6 +250,22 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         )}
       </div>
       {type === "transfer" && <label>Data<input type="date" value={date} onInput={(e) => setDate(e.currentTarget.value)} /></label>}
+      {type === "transfer" && toCard && (
+        <label>Pagamento da fatura
+          <select value={billFor} onChange={(e) => setBillFor(e.currentTarget.value)}>
+            {billChoices.map(({ m, b }) => (
+              <option key={m} value={m}>Vence {b ? dayMonth(b.due) : monthLong(m).toLowerCase()}{b ? ` · ${money(b.total)}${b.remaining && b.remaining < b.total ? ` (falta ${money(b.remaining)})` : !b.remaining ? " (paga)" : ""}` : ""}</option>
+            ))}
+            <option value="">Não é pagamento de fatura</option>
+          </select>
+        </label>
+      )}
+      {onCard && cardBillMonth && (
+        <p class="muted small hint">
+          {type === "income" ? "Estorno/crédito: abate" : "Entra"} na fatura que vence {cardBill ? `${dayMonth(cardBill.due)}` : monthLong(cardBillMonth).toLowerCase()}
+          {isNew && repeat === "installments" ? " (1ª parcela; as demais nas faturas seguintes)" : ""}.
+        </p>
+      )}
 
       {type === "expense" && data.properties.some((p) => !p.archived || p.id === propertyId) && (
         <label>Imóvel (opcional)
@@ -231,10 +276,12 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         </label>
       )}
 
-      <label class="toggle">
-        <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.currentTarget.checked)} />
-        <span>{type === "income" ? "Recebido" : type === "transfer" ? "Realizada" : "Pago"}{isNew && repeat !== "once" ? " (1ª ocorrência)" : ""}</span>
-      </label>
+      {!onCard && (
+        <label class="toggle">
+          <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.currentTarget.checked)} />
+          <span>{type === "income" ? "Recebido" : type === "transfer" ? "Realizada" : "Pago"}{isNew && repeat !== "once" ? " (1ª ocorrência)" : ""}</span>
+        </label>
+      )}
 
       {isNew && type !== "transfer" && (
         <div class="field">
@@ -265,5 +312,18 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       {item?.plan && <p class="muted small">Parcelamento: {money(item.plan.total)} em {item.plan.count}× · alterar aqui muda só esta parcela.</p>}
       {error && <p class="error" role="alert">{error}</p>}
     </Sheet>
+  );
+}
+
+/** Opções de conta, com os cartões num grupo separado. */
+function AccountOptions({ list }: { list: Account[] }) {
+  const accs = list.filter((a) => !isCard(a));
+  const cards = list.filter(isCard);
+  if (!cards.length) return <>{accs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</>;
+  return (
+    <>
+      <optgroup label="Contas">{accs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>
+      <optgroup label="Cartões de crédito">{cards.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>
+    </>
   );
 }

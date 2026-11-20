@@ -13,16 +13,27 @@ export type Base = {
   by?: string;
 };
 
-export type AccountKind = "checking" | "savings" | "cash" | "investment";
+export type AccountKind = "checking" | "savings" | "cash" | "investment" | "credit";
 export type Account = Base & {
   t: "account";
   name: string;
   kind: AccountKind;
-  initialBalance: number; // centavos
+  initialBalance: number; // centavos (cartão: negativo = dívida)
   color: string;
   archived?: boolean;
   order: number;
+  // Só cartão de crédito (kind "credit"):
+  /** Conta de onde sai o pagamento da fatura. */
+  payFromId?: string;
+  /** Dia do fechamento (1..31): compras a partir deste dia vão para a fatura seguinte. */
+  closingDay?: number;
+  /** Dia do vencimento da fatura (1..31). */
+  dueDay?: number;
+  /** Limite, em centavos (opcional). */
+  limit?: number;
 };
+
+export const isCard = (a: Account | undefined): boolean => a?.kind === "credit";
 
 export type Flow = "income" | "expense";
 export type Category = Base & {
@@ -33,7 +44,11 @@ export type Category = Base & {
   archived?: boolean;
   /** Cor da categoria ("c1".."c8", paleta validada); ausente = cor automática estável (colorOf). */
   color?: string;
+  /** Só despesas: custo (consumo) ou investimento (constrói patrimônio). Ausente = custo. */
+  purpose?: "cost" | "investment";
 };
+
+export const isInvestment = (c: Category | undefined): boolean => c?.type === "expense" && c.purpose === "investment";
 
 /** Imóvel: para associar custos (opcional nas despesas). */
 export type PropertyKind = "apartment" | "house" | "beach" | "farm" | "land" | "commercial" | "other";
@@ -62,6 +77,7 @@ export type Txn = Base & {
   ruleId?: string; // mês de um recorrente
   ruleMonth?: string; // "AAAA-MM" do recorrente (um registro excluído aqui = "pular este mês")
   propertyId?: string; // imóvel associado (opcional)
+  billFor?: string; // pagamento de fatura: "AAAA-MM" do vencimento da fatura paga (transferência para o cartão)
 };
 
 /** Recorrente mensal: gera um lançamento previsto por mês (sem gravar nada até ser confirmado/ajustado). */
@@ -108,6 +124,7 @@ export const KIND_LABEL: Record<AccountKind, string> = {
   savings: "Poupança",
   cash: "Dinheiro/carteira",
   investment: "Investimento",
+  credit: "Cartão de crédito",
 };
 
 /** Cores para contas (paleta categórica validada). */

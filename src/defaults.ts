@@ -11,12 +11,11 @@ const CATS: [string, string, Flow, string][] = [
   ["internet", "Internet e telefone", "expense", "📶"],
   ["mercado", "Mercado", "expense", "🛒"],
   ["restaurantes", "Restaurantes e delivery", "expense", "🍽️"],
-  ["transporte", "Transporte e combustível", "expense", "🚗"],
-  ["saude", "Saúde", "expense", "🩺"],
-  ["farmacia", "Farmácia", "expense", "💊"],
+  ["transporte", "Veículos, combustível e transporte", "expense", "🚗"],
+  ["saude", "Saúde e farmácia", "expense", "🩺"], // versão 4: absorveu "Farmácia" (cat-farmacia)
   ["educacao", "Educação", "expense", "📚"],
   ["filhos", "Lucca/filhos", "expense", "🍼"],
-  ["lazer", "Lazer", "expense", "🎉"],
+  ["lazer", "Lazer e hobbies", "expense", "🎉"],
   ["assinaturas", "Assinaturas", "expense", "📺"],
   ["vestuario", "Vestuário", "expense", "👕"],
   ["impostos", "Impostos e taxas", "expense", "🧾"],
@@ -33,8 +32,10 @@ const CATS: [string, string, Flow, string][] = [
 ];
 
 // Cores automáticas das categorias padrão: em sequência na lista (despesas e receitas separadas,
-// para as mais comuns de cada tipo não repetirem cor).
-DEFAULT_COLOR_ORDER.push(...CATS.filter((c) => c[2] === "expense").map((c) => `cat-${c[0]}`));
+// para as mais comuns de cada tipo não repetirem cor). Padrões retirados mantêm a vaga na sequência
+// para as cores automáticas das demais não mudarem.
+const RETIRED_AFTER: Record<string, string> = { saude: "farmacia" };
+DEFAULT_COLOR_ORDER.push(...CATS.filter((c) => c[2] === "expense").flatMap((c) => [c[0], ...(RETIRED_AFTER[c[0]] ? [RETIRED_AFTER[c[0]]] : [])]).map((id) => `cat-${id}`));
 const incomeStart = Math.ceil(DEFAULT_COLOR_ORDER.length / 8) * 8;
 CATS.filter((c) => c[2] === "income").forEach((c, i) => { DEFAULT_COLOR_ORDER[incomeStart + i] = `cat-${c[0]}`; });
 
@@ -42,11 +43,35 @@ CATS.filter((c) => c[2] === "income").forEach((c, i) => { DEFAULT_COLOR_ORDER[in
  * Versão dos dados iniciais. Ao acrescentar um padrão novo, suba o número: aparelhos que já usam o app
  * recebem só o que falta (por id — um padrão excluído pelo usuário tem marca de exclusão e não volta).
  */
-export const DEFAULTS_VERSION = 3; // 3: categoria do usuário com mesmo nome de um padrão é substituída pelo padrão
+export const DEFAULTS_VERSION = 6; // 3: categoria do usuário com mesmo nome de um padrão é substituída pelo padrão
+// 4: "Farmácia" unificada em "Saúde e farmácia"; "Lazer" → "Lazer e hobbies" (ver MERGES/RENAMES)
+// 5: "Transporte e combustível" → "Veículos, combustível e transporte"
+// 6: Investimentos e Educação classificadas como investimento (ver PURPOSES)
+
+/** Classificação custo/investimento de padrões: só aplica se o usuário ainda não classificou. */
+export const PURPOSES: { since: number; id: string; purpose: "cost" | "investment" }[] = [
+  { since: 6, id: "cat-investimentos", purpose: "investment" },
+  { since: 6, id: "cat-educacao", purpose: "investment" },
+];
+
+/** Padrões unificados: os lançamentos/recorrentes/parcelamentos de `from` passam para `to` e `from` é excluído. */
+export const MERGES: { since: number; from: string; to: string }[] = [
+  { since: 4, from: "cat-farmacia", to: "cat-saude" },
+];
+
+/** Padrões renomeados: só renomeia se o usuário ainda não mudou o nome (ainda é `from`). */
+export const RENAMES: { since: number; id: string; from: string; to: string }[] = [
+  { since: 4, id: "cat-saude", from: "Saúde", to: "Saúde e farmácia" },
+  { since: 4, id: "cat-lazer", from: "Lazer", to: "Lazer e hobbies" },
+  { since: 5, id: "cat-transporte", from: "Transporte e combustível", to: "Veículos, combustível e transporte" },
+];
+
+/** Categorias padrão classificadas como investimento (as demais despesas são custo). */
+const INVESTMENT = new Set(["investimentos", "educacao"]);
 
 export function defaultRecords(now: number): (Category | Account)[] {
   return [
-    ...CATS.map(([id, name, type, emoji]): Category => ({ id: `cat-${id}`, t: "category", name, type, emoji, updatedAt: now })),
+    ...CATS.map(([id, name, type, emoji]): Category => ({ id: `cat-${id}`, t: "category", name, type, emoji, updatedAt: now, ...(INVESTMENT.has(id) ? { purpose: "investment" as const } : {}) })),
     { id: "acc-principal", t: "account", name: "Conta principal", kind: "checking", initialBalance: 0, color: "#2a78d6", order: 0, updatedAt: now },
   ];
 }

@@ -3,14 +3,16 @@ import type { Store } from "../app";
 import { addMonths, thisMonth } from "../dates";
 import { requestPersist } from "../db";
 import { byProperty, monthItems } from "../engine";
-import { PROPERTY_KIND, colorOf, isRec, money, type Flow } from "../model";
+import { PROPERTY_KIND, colorOf, isInvestment, isRec, money, type Flow } from "../model";
 import { Icon } from "./icons";
+import { getTheme, setTheme, type Theme } from "../theme";
 
 export function Settings({ store }: { store: Store }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [flow, setFlow] = useState<Flow>("expense");
   const [showArchived, setShowArchived] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(getTheme());
   const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
   useEffect(() => { requestPersist().then(setPersisted); }, []);
 
@@ -89,7 +91,7 @@ export function Settings({ store }: { store: Store }) {
         </div>
         <div class="chips">
           {cats.map((c) => (
-            <button key={c.id} type="button" class={`chip ${c.archived ? "archived" : ""}`} onClick={() => store.openCategory(c)}><i class={`cdot ${colorOf(c)}`} />{c.emoji} {c.name}</button>
+            <button key={c.id} type="button" class={`chip ${c.archived ? "archived" : ""}`} onClick={() => store.openCategory(c)}><i class={`cdot ${colorOf(c)}`} />{c.emoji} {c.name}{isInvestment(c) && <span class="inv-tag" title="Investimento">invest.</span>}</button>
           ))}
           <button type="button" class="chip add" onClick={() => store.openCategory({ type: flow })}>+ nova</button>
         </div>
@@ -116,6 +118,16 @@ export function Settings({ store }: { store: Store }) {
         </li>
       </ul>
       {msg && <p class="note" role="status">{msg}</p>}
+
+      <p class="section-label">Aparência</p>
+      <section class="card">
+        <div class="seg wide" role="group" aria-label="Tema">
+          {([["auto", "Automático"], ["light", "Claro"], ["dark", "Escuro"]] as const).map(([k, l]) => (
+            <button key={k} type="button" class={theme === k ? "on" : ""} aria-pressed={theme === k} onClick={() => { setThemeState(k); setTheme(k); }}>{l}</button>
+          ))}
+        </div>
+        <p class="muted small">Automático segue o modo claro/escuro do aparelho. Vale só para este aparelho.</p>
+      </section>
 
       <p class="section-label">Este aparelho</p>
       <section class="card">

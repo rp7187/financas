@@ -8,6 +8,7 @@ const PATHS = {
   up: "M12 19V5M6 11l6-6 6 6",
   swap: "M7 7h13M16 3l4 4-4 4M17 17H4M8 13l-4 4 4 4",
   calendar: "M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2zM4 10h16M9 3v4M15 3v4",
+  card: "M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM3 10h18M7 15h4",
   wallet: "M3 7a2 2 0 0 1 2-2h13v4M3 7v10a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2zM16 14h.01",
   chart: "M4 20V11M10 20V5M16 20v-6M21 20H3",
   sliders: "M4 7h10M18 7h2M4 17h4M12 17h8M14 4v6M8 14v6",
