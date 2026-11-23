@@ -23,7 +23,7 @@ const META_CONFIG = "sync";
 const META_DIRTY = "syncDirty";
 const BATCH = 500;
 const FULL_EVERY = 24 * 60 * 60 * 1000; // conferência completa 1×/dia (pega algo que tenha escapado)
-const INTERVAL = 60 * 1000;
+const INTERVAL = 20 * 1000; // reserva, caso o aviso em tempo real não chegue
 
 let config: Config | null = null;
 let dirty = new Set<string>();
@@ -155,7 +155,9 @@ async function cycle() {
   if (!c) return;
   setState({ status: "syncing", error: undefined });
   try {
+    const pushed = dirty.size > 0;
     await pushIds(c, [...dirty]);
+    if (pushed) notifyOthers();
     const full = Date.now() - c.lastFull > FULL_EVERY;
     const { recs, maxRev } = await pullAll(c, full ? 0 : c.lastRev);
     await applyRemote(recs);
@@ -186,7 +188,76 @@ export function markDirty(ids: string[]) {
   for (const id of ids) dirty.add(id);
   db.setMeta(META_DIRTY, [...dirty]);
   if (timer) clearTimeout(timer);
-  timer = setTimeout(() => { timer = null; syncNow(); }, 1500);
+  timer = setTimeout(() => { timer = null; syncNow(); }, 600);
+}
+
+/* ---------------- Aviso em tempo real (Supabase Realtime, broadcast) ----------------
+ * Depois de enviar mudanças, o aparelho avisa "mudou" num canal da família; os outros aparelhos abertos
+ * sincronizam na hora. O aviso não leva dados; o nome do canal é derivado da chave (não revela a família).
+ * Protocolo Phoenix direto no WebSocket (sem biblioteca).
+ */
+let ws: WebSocket | null = null;
+let wsTopic = "";
+let wsRef = 0;
+let wsRetry = 0;
+let heartbeat: ReturnType<typeof setInterval> | null = null;
+
+async function channelOf(c: Config): Promise<string> {
+  const h = new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(`financas-canal:${c.familyId}:${c.key}`)));
+  return b64url(h).slice(0, 32);
+}
+
+function wsSend(msg: object) {
+  if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ ...msg, ref: String(++wsRef) }));
+}
+
+async function connectRealtime() {
+  const c = config;
+  if (!c || ws || typeof WebSocket === "undefined") return;
+  const topic = `realtime:${await channelOf(c)}`;
+  if (config !== c || ws) return;
+  const sock = new WebSocket(`${SUPABASE_URL.replace(/^http/, "ws")}/realtime/v1/websocket?apikey=${encodeURIComponent(SUPABASE_KEY)}&vsn=1.0.0`);
+  ws = sock;
+  wsTopic = topic;
+  let joinRef = "";
+  sock.onopen = () => {
+    joinRef = String(wsRef + 1);
+    wsSend({ topic, event: "phx_join", payload: { config: { broadcast: { self: false, ack: false }, presence: { key: "" }, private: false } } });
+    heartbeat = setInterval(() => wsSend({ topic: "phoenix", event: "heartbeat", payload: {} }), 25_000);
+  };
+  sock.onmessage = (m) => {
+    let msg: { topic?: string; event?: string; ref?: string; payload?: { event?: string; status?: string } };
+    try { msg = JSON.parse(String(m.data)); } catch { return; }
+    if (msg.topic !== topic) return;
+    if (msg.event === "phx_reply" && msg.ref === joinRef && msg.payload?.status === "ok") {
+      wsRetry = 0;
+      syncNow(); // pega o que mudou enquanto estava desconectado
+    } else if (msg.event === "broadcast" && msg.payload?.event === "changed") {
+      syncNow();
+    }
+  };
+  sock.onclose = () => {
+    if (heartbeat) clearInterval(heartbeat);
+    heartbeat = null;
+    if (ws !== sock) return;
+    ws = null;
+    // reconecta com espera crescente (o iPhone derruba a conexão com o app em segundo plano)
+    if (config && document.visibilityState === "visible") setTimeout(connectRealtime, Math.min(30_000, 1000 * 2 ** wsRetry++));
+  };
+  sock.onerror = () => sock.close();
+}
+
+function disconnectRealtime() {
+  const s = ws;
+  ws = null;
+  if (heartbeat) clearInterval(heartbeat);
+  heartbeat = null;
+  s?.close();
+}
+
+/** Avisa os outros aparelhos abertos que há mudanças. */
+function notifyOthers() {
+  wsSend({ topic: wsTopic, event: "broadcast", payload: { type: "broadcast", event: "changed", payload: {} } });
 }
 
 let listening = false;
@@ -194,8 +265,10 @@ let listening = false;
 function listen() {
   if (listening) return;
   listening = true;
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncNow(); });
-  window.addEventListener("online", () => syncNow());
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") { connectRealtime(); syncNow(); }
+  });
+  window.addEventListener("online", () => { connectRealtime(); syncNow(); });
   setInterval(() => { if (document.visibilityState === "visible") syncNow(); }, INTERVAL);
 }
 
@@ -206,6 +279,7 @@ export async function initSync(h: NonNullable<typeof handlers>) {
   if (!config) { setState({ status: "off" }); return; }
   setState({ status: "idle", familyId: config.familyId });
   listen();
+  connectRealtime();
   syncNow();
 }
 
@@ -214,6 +288,7 @@ async function start(c: Config) {
   await db.setMeta(META_CONFIG, c);
   setState({ status: "idle", familyId: c.familyId, error: undefined });
   listen();
+  connectRealtime();
 }
 
 /** Cria a família com os dados deste aparelho (tudo sobe para a nuvem). */
@@ -290,6 +365,7 @@ export async function leaveFamily(deleteCloud = false) {
   const c = config;
   if (c && deleteCloud) await rpc("delete_family", { p_family: c.familyId, p_proof: await proofOf(c.key) });
   config = null;
+  disconnectRealtime();
   dirty = new Set();
   await db.setMeta(META_CONFIG, null);
   await db.setMeta(META_DIRTY, []);
