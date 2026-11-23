@@ -775,3 +775,8 @@ tr:last-child td { border-bottom: 0; }
 .ic.sync-offline { color: var(--warn); }
 .ic.sync-syncing { color: var(--brand); }
 .ios-row:disabled { opacity: 0.6; }
+.warn-note { background: var(--warn-bg); border-radius: 12px; padding: 10px 12px; margin: 0; color: var(--text-2); }
+.join-banner { background: color-mix(in srgb, var(--brand) 10%, var(--surface)); border-radius: 18px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+.join-banner p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-2); }
+.join-banner b { color: var(--text); }
+.join-actions { display: flex; justify-content: flex-end; gap: 8px; }

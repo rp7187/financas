@@ -3,6 +3,7 @@ import type { Store } from "../app";
 import { addMonths, dayLabel, dayMonth, monthLong, thisMonth, todayISO } from "../dates";
 import { balanceByMonth, currentBalance, effect, monthItems, monthTotals, type Item } from "../engine";
 import type { TxnDraft } from "./txn-sheet";
+import { JoinBanner } from "./family-sync";
 import { colorOf, money, signedMoney, uid, type Txn } from "../model";
 import { Icon } from "./icons";
 
@@ -107,6 +108,8 @@ export function MonthView({ store }: { store: Store }) {
           </div>
         )}
       </section>
+
+      <JoinBanner store={store} />
 
       {data.accounts.filter((a) => !a.archived).length > 1 && (
         <div class="chips scroll" role="group" aria-label="Conta">

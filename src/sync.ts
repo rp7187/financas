@@ -259,6 +259,27 @@ export async function joinFamily(invite: string) {
   await syncNow();
 }
 
+/** App aberto pelo ícone da tela de início/Dock (no iPhone, armazenamento separado do Safari). */
+export const isStandalone = () =>
+  window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+
+/** Lê um link de convite copiado (o iPhone mostra o botão "Colar" para autorizar). */
+export async function inviteFromClipboard(): Promise<string | null> {
+  try {
+    const text = await navigator.clipboard.readText();
+    return parseInvite(text) ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Cola o convite copiado e entra na família. Erro com mensagem amigável se não houver convite copiado. */
+export async function joinFromClipboard() {
+  const text = await inviteFromClipboard();
+  if (!text) throw new Error("Nenhum link de convite copiado. No Mac ou no Safari: Ajustes → Família → Convidar outro aparelho (copiar link). Depois toque em Colar convite de novo.");
+  await joinFamily(text);
+}
+
 export function inviteLink(): string | null {
   if (!config) return null;
   return `${location.origin}${location.pathname}#familia=${config.familyId}.${config.key}`;

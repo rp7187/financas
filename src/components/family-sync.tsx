@@ -26,7 +26,20 @@ export function FamilySync({ store }: { store: Store }) {
   if (st.status === "off") {
     return (
       <>
+        {sync.isStandalone() && (
+          <p class="muted small family-note">
+            Este app da tela de início guarda os dados separados do Safari. Se a família já existe (criada no Mac ou no Safari),
+            copie o link de convite lá e toque em <b>Colar convite</b>.
+          </p>
+        )}
         <ul class="ios-list">
+          <li>
+            <button type="button" class="ios-row" disabled={busy} onClick={() => run(sync.joinFromClipboard, "Pronto! Este aparelho agora sincroniza com a família.")}>
+              <span class="ic"><Icon name="download" /></span>
+              <span class="grow"><span>{busy ? "Entrando…" : "Colar convite"}</span><small>Já copiou o link de convite? Toque aqui para entrar na família.</small></span>
+              <Icon name="chevR" class="chev" />
+            </button>
+          </li>
           <li>
             <button type="button" class="ios-row" disabled={busy} onClick={() => {
               if (confirm("Criar a família com os dados deste aparelho? Eles serão criptografados aqui e guardados na nuvem; depois você convida os outros aparelhos.")) {
@@ -40,8 +53,8 @@ export function FamilySync({ store }: { store: Store }) {
           </li>
           <li>
             <button type="button" class="ios-row" disabled={busy} onClick={() => setJoining(!joining)}>
-              <span class="ic"><Icon name="download" /></span>
-              <span class="grow"><span>Entrar com convite</span><small>Cole o link de convite gerado no outro aparelho.</small></span>
+              <span class="ic"><Icon name="info" /></span>
+              <span class="grow"><span>Digitar o convite</span><small>Se colar não funcionar: cole o link num campo de texto.</small></span>
               <Icon name="chevR" class="chev" />
             </button>
           </li>
@@ -95,9 +108,15 @@ export function FamilySync({ store }: { store: Store }) {
         </li>
       </ul>
       {showLink && <p class="invite-link" onClick={(e) => getSelection()?.selectAllChildren(e.currentTarget)}>{link}</p>}
+      {!sync.isStandalone() && (
+        <p class="muted small family-note warn-note">
+          <b>Vai usar pelo ícone da tela de início?</b> No iPhone, o app instalado não enxerga os dados do Safari. Depois de instalar,
+          toque aqui em Convidar (copiar link), abra o app pelo ícone e toque em Ajustes → <b>Colar convite</b>.
+        </p>
+      )}
       <p class="muted small family-note">
         <b>Guarde o link de convite.</b> Ele contém a chave da família: quem tiver o link vê os dados, e sem ele (e sem nenhum aparelho)
-        os dados na nuvem não podem ser lidos. No iPhone com o app na tela de início, cole o link em Ajustes → Entrar com convite.
+        os dados na nuvem não podem ser lidos. No app da tela de início, use Ajustes → Colar convite.
       </p>
       {msg && <p class="note" role="status">{msg}</p>}
       <ul class="ios-list">
@@ -115,5 +134,29 @@ export function FamilySync({ store }: { store: Store }) {
         </li>
       </ul>
     </>
+  );
+}
+
+const DISMISS = "financas-convite-dispensado";
+
+/** Aviso na aba Mês do app instalado que ainda não sincroniza (no iPhone, dados separados do Safari). */
+export function JoinBanner({ store }: { store: Store }) {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(DISMISS) === "1"; } catch { return false; } });
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  if (hidden || store.sync.status !== "off" || !sync.isStandalone()) return null;
+  return (
+    <div class="join-banner" role="region" aria-label="Sincronizar com a família">
+      <p><b>Sincronizar com a família?</b> Este app da tela de início tem dados separados do Safari. Copie o link de convite
+        (no Mac ou no Safari: Ajustes → Família → Convidar) e toque em Colar convite.</p>
+      {msg && <p class="error" role="alert">{msg}</p>}
+      <div class="join-actions">
+        <button type="button" class="btn small ghost" onClick={() => { try { localStorage.setItem(DISMISS, "1"); } catch { /* sem armazenamento */ } setHidden(true); }}>Agora não</button>
+        <button type="button" class="btn small brand" disabled={busy} onClick={async () => {
+          setBusy(true); setMsg(null);
+          try { await sync.joinFromClipboard(); } catch (e) { setMsg(e instanceof Error ? e.message : String(e)); } finally { setBusy(false); }
+        }}>{busy ? "Entrando…" : "Colar convite"}</button>
+      </div>
+    </div>
   );
 }
