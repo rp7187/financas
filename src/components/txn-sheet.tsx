@@ -2,7 +2,7 @@ import { useState } from "preact/hooks";
 import type { Store } from "../app";
 import { addMonths, addMonthsToDate, dayMonth, monthLong, monthOf, thisMonth, todayISO } from "../dates";
 import { bill, billMonthOf, type Item } from "../engine";
-import { isCard, money, splitInstallments, uid, type Account, type Flow, type Plan, type Rule, type Txn } from "../model";
+import { isCard, isInvestAccount, money, splitInstallments, uid, type Account, type Flow, type Plan, type Rule, type Txn } from "../model";
 import { MoneyInput, Sheet } from "./sheet";
 
 /** Novo lançamento (com valores iniciais opcionais; ex.: pagamento de fatura já preenchido). */
@@ -317,13 +317,15 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
 
 /** Opções de conta, com os cartões num grupo separado. */
 function AccountOptions({ list }: { list: Account[] }) {
-  const accs = list.filter((a) => !isCard(a));
+  const accs = list.filter((a) => !isCard(a) && !isInvestAccount(a));
   const cards = list.filter(isCard);
-  if (!cards.length) return <>{accs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</>;
+  const invs = list.filter(isInvestAccount);
+  if (!cards.length && !invs.length) return <>{accs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</>;
   return (
     <>
       <optgroup label="Contas">{accs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>
-      <optgroup label="Cartões de crédito">{cards.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>
+      {cards.length > 0 && <optgroup label="Cartões de crédito">{cards.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>}
+      {invs.length > 0 && <optgroup label="Investimentos">{invs.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</optgroup>}
     </>
   );
 }

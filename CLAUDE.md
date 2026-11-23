@@ -24,6 +24,10 @@ Nenhuma versão nova pode perder ou tornar ilegível o que já foi gravado.
   Um `txn` com `ruleId` + `ruleMonth` confirma/ajusta aquele mês; excluído = mês pulado.
 - `plan` (parcelado) grava uma `txn` por parcela (`planId`, `installment`).
 - Transferência = `txn` com `type: "transfer"`, `accountId` → `toAccountId`; não entra em receitas/despesas.
+- Cartão de crédito = conta `kind: "credit"`; fatura calculada por ciclo (`engine.ts`), paga por transferência com `billFor`.
+- Investimento = conta `kind: "investment"` ou `"savings"`: fica fora do "disponível" (saldo total, previsto,
+  simulação); aporte/resgate = transferência. Saldo vem do `valuation` (um por conta por mês, id fixo
+  `val:<conta>:<mês>`) + movimentos depois dele; rendimento = saldo − saldo anterior − aportes líquidos.
 
 ## Fase 2: família + sincronização (`src/sync.ts`, `supabase/schema.sql`)
 

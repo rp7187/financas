@@ -136,10 +136,10 @@ export function MonthView({ store }: { store: Store }) {
 
       <JoinBanner store={store} />
 
-      {data.accounts.filter((a) => !a.archived).length > 1 && (
+      {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).length > 1 && (
         <div class="chips scroll" role="group" aria-label="Conta">
           <button type="button" class={`chip ${!acc ? "on" : ""}`} onClick={() => setAccountId("")}>Todas as contas</button>
-          {data.accounts.filter((a) => !a.archived).map((a) => (
+          {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).map((a) => (
             <button key={a.id} type="button" class={`chip ${acc === a.id ? "on" : ""}`} onClick={() => setAccountId(a.id)}>
               <i class="sw" style={{ background: a.color }} />{a.name}
             </button>
@@ -169,7 +169,7 @@ export function MonthView({ store }: { store: Store }) {
         </div>
       )}
       {[...groups.entries()].map(([date, list]) => {
-        const net = list.reduce((s, it) => s + effect(it.txn, acc), 0);
+        const net = list.reduce((s, it) => s + effect(it.txn, acc, data), 0);
         return (
           <section key={date}>
             <div class="day-head">

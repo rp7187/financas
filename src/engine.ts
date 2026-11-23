@@ -1,5 +1,5 @@
 import { addMonths, dateInMonth, daysInMonth, monthDiff, monthOf, thisMonth, todayISO } from "./dates";
-import { isCard, type Account, type Category, type Plan, type Property, type Rec, type Rule, type Txn } from "./model";
+import { isCard, isInvestAccount, type Account, type Category, type Plan, type Property, type Rec, type Rule, type Txn, type Valuation } from "./model";
 
 /** Registros vivos (sem os excluídos), separados por tipo. */
 export type Data = {
@@ -13,12 +13,16 @@ export type Data = {
   ruleDone: Set<string>;
   /** Ids das contas que são cartão de crédito. */
   cards: Set<string>;
+  /** Ids dos investimentos (aplicações e poupança): ficam fora do "disponível". */
+  investments: Set<string>;
+  /** Saldos informados dos investimentos, por data. */
+  valuations: Valuation[];
   /** Estimativa de gastos variáveis por mês (média dos últimos meses fechados) e quantos meses entraram na média. */
   variable: { avg: number; months: number };
 };
 
 export function indexData(records: Rec[]): Data {
-  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], properties: [], ruleDone: new Set(), cards: new Set(), variable: { avg: 0, months: 0 } };
+  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], properties: [], ruleDone: new Set(), cards: new Set(), investments: new Set(), valuations: [], variable: { avg: 0, months: 0 } };
   for (const r of records) {
     if (r.t === "txn" && r.ruleId && r.ruleMonth) d.ruleDone.add(`${r.ruleId}|${r.ruleMonth}`);
     if (r.deleted) continue;
@@ -28,9 +32,11 @@ export function indexData(records: Rec[]): Data {
     else if (r.t === "rule") d.rules.push(r);
     else if (r.t === "plan") d.plans.push(r);
     else if (r.t === "property") d.properties.push(r);
+    else if (r.t === "valuation") d.valuations.push(r);
   }
+  d.valuations.sort((a, b) => a.date.localeCompare(b.date) || a.month.localeCompare(b.month));
   d.accounts.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "pt-BR"));
-  for (const a of d.accounts) if (isCard(a)) d.cards.add(a.id);
+  for (const a of d.accounts) { if (isCard(a)) d.cards.add(a.id); if (isInvestAccount(a)) d.investments.add(a.id); }
   d.variable = variableAverage(d);
   d.categories.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   d.properties.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
@@ -186,15 +192,23 @@ function firstCardMonth(d: Data, cardId: string): string | null {
   return first && monthOf(first);
 }
 
-/** Efeito do lançamento no saldo de uma conta (ou no total, se `accountId` ausente). */
-export function effect(t: Txn, accountId?: string): number {
+/**
+ * Efeito do lançamento no saldo de uma conta, ou no total DISPONÍVEL se `accountId` ausente.
+ * Com `d`, o total exclui os investimentos: aplicar = sai do disponível; resgatar = entra.
+ */
+export function effect(t: Txn, accountId?: string, d?: Data): number {
+  const inv = (id?: string) => !!id && !!d && d.investments.has(id);
   if (t.type === "transfer") {
-    if (!accountId) return 0; // entre contas próprias: não muda o total
+    if (!accountId) return (inv(t.accountId) ? t.amount : 0) - (inv(t.toAccountId) ? t.amount : 0); // entre contas do dia a dia: 0
     return (t.toAccountId === accountId ? t.amount : 0) - (t.accountId === accountId ? t.amount : 0);
   }
-  if (accountId && t.accountId !== accountId) return 0;
+  if (accountId ? t.accountId !== accountId : inv(t.accountId)) return 0;
   return t.type === "income" ? t.amount : -t.amount;
 }
+
+/** Saldo inicial do disponível (sem investimentos) ou de uma conta. */
+const initialOf = (d: Data, accountId?: string) =>
+  d.accounts.filter((a) => (accountId ? a.id === accountId : !d.investments.has(a.id))).reduce((s, a) => s + a.initialBalance, 0);
 
 export type Totals = {
   income: number; expense: number; incomePaid: number; expensePaid: number; pending: number; overdue: number;
@@ -228,16 +242,17 @@ export function monthTotals(items: Item[], accountId?: string): Totals {
 
 /** Saldo realizado agora (só o que está pago/recebido; no cartão, também os recorrentes previstos até hoje). */
 export function currentBalance(d: Data, accountId?: string): number {
-  const initial = d.accounts.filter((a) => !accountId || a.id === accountId).reduce((s, a) => s + a.initialBalance, 0);
+  if (accountId && d.investments.has(accountId)) return investBalanceAt(d, accountId, todayISO());
+  const initial = initialOf(d, accountId);
   const today = todayISO();
   // compras no cartão com data futura (parcelas) ainda não aconteceram: entram no limite, não no saldo
   const happened = (t: Txn) => t.paid && (t.type === "transfer" || !d.cards.has(t.accountId) || t.date <= today);
-  let bal = d.txns.filter(happened).reduce((s, t) => s + effect(t, accountId), initial);
+  let bal = d.txns.filter(happened).reduce((s, t) => s + effect(t, accountId, d), initial);
   for (const r of d.rules) {
     if (!d.cards.has(r.accountId) || (accountId && r.accountId !== accountId)) continue;
     for (let m = r.startMonth; m <= monthOf(today) && ruleActive(r, m); m = addMonths(m, 1)) {
       const v = virtualTxn(r, m, true);
-      if (v.date <= today && !d.ruleDone.has(`${r.id}|${m}`)) bal += effect(v, accountId);
+      if (v.date <= today && !d.ruleDone.has(`${r.id}|${m}`)) bal += effect(v, accountId, d);
     }
   }
   return bal;
@@ -248,13 +263,13 @@ export function currentBalance(d: Data, accountId?: string): number {
  * Começa do saldo inicial das contas e soma tudo que tem data até o fim de cada mês.
  */
 export function balanceByMonth(d: Data, from: string, to: string, accountId?: string): { month: string; balance: number }[] {
-  const initial = d.accounts.filter((a) => !accountId || a.id === accountId).reduce((s, a) => s + a.initialBalance, 0);
-  const before = d.txns.filter((t) => monthOf(t.date) < from).reduce((s, t) => s + effect(t, accountId), initial);
+  const initial = initialOf(d, accountId);
+  const before = d.txns.filter((t) => monthOf(t.date) < from).reduce((s, t) => s + effect(t, accountId, d), initial);
   // recorrentes previstos antes de `from` (meses não confirmados)
   let running = before;
   for (const r of d.rules) {
     for (let m = r.startMonth; m < from && (!r.endMonth || m <= r.endMonth); m = addMonths(m, 1)) {
-      if (!d.ruleDone.has(`${r.id}|${m}`)) running += effect(virtualTxn(r, m), accountId);
+      if (!d.ruleDone.has(`${r.id}|${m}`)) running += effect(virtualTxn(r, m), accountId, d);
       if (monthDiff(r.startMonth, m) > 600) break;
     }
   }
@@ -267,13 +282,13 @@ export function balanceByMonth(d: Data, from: string, to: string, accountId?: st
       const first = firstCardMonth(d, card.id);
       for (let m = first ?? from; m < from; m = addMonths(m, 1)) {
         const b = bill(d, card, m);
-        if (b && b.remaining > 0) running += effect(billTxn(b), accountId);
+        if (b && b.remaining > 0) running += effect(billTxn(b), accountId, d);
       }
     }
   }
   const out: { month: string; balance: number }[] = [];
   for (let m = from; m <= to; m = addMonths(m, 1)) {
-    running += monthItems(d, m).reduce((s, it) => s + effect(it.txn, accountId), 0);
+    running += monthItems(d, m).reduce((s, it) => s + effect(it.txn, accountId, d), 0);
     out.push({ month: m, balance: running });
   }
   return out;
@@ -331,4 +346,71 @@ export function byPurpose(d: Data, items: Item[], accountId?: string): { cost: n
 /** Fixas + parcelas por mês, separadas em custo e investimento (comprometimento da renda). */
 export function committedByPurpose(d: Data, items: Item[]): { cost: number; investment: number } {
   return byPurpose(d, items.filter((it) => it.rule || it.plan || it.txn.ruleId || it.txn.planId));
+}
+
+/* ---------------- Investimentos ---------------- */
+
+/** Saldo de um investimento numa data: último saldo informado até a data + movimentos depois dele. */
+export function investBalanceAt(d: Data, accountId: string, date: string): number {
+  const acc = d.accounts.find((a) => a.id === accountId);
+  let last: Valuation | undefined;
+  for (const v of d.valuations) if (v.accountId === accountId && v.date <= date) last = v;
+  const base = last ? last.balance : acc?.initialBalance ?? 0;
+  return d.txns
+    .filter((t) => t.paid && t.date <= date && (!last || t.date > last.date) && (t.accountId === accountId || t.toAccountId === accountId))
+    .reduce((s, t) => s + effect(t, accountId), base);
+}
+
+/** Aportes − resgates (e outros lançamentos) no investimento no intervalo (from, to]. */
+export function investFlows(d: Data, accountId: string, from: string, to: string): number {
+  return d.txns
+    .filter((t) => t.paid && t.date > from && t.date <= to && (t.accountId === accountId || t.toAccountId === accountId))
+    .reduce((s, t) => s + effect(t, accountId), 0);
+}
+
+export type InvestMonth = {
+  month: string;
+  start: number; // saldo no início (fim do mês anterior, ou 1º saldo informado)
+  end: number; // saldo no fim do mês (ou hoje, no mês atual)
+  flows: number; // aportes − resgates
+  yield: number; // rendimento = fim − início − aportes líquidos
+  pct: number | null; // rendimento ÷ base
+  updated: boolean; // houve saldo informado no mês (senão o rendimento é 0 por falta de dado)
+};
+
+const lastDay = (m: string) => `${m}-${String(daysInMonth(m)).padStart(2, "0")}`;
+
+/** Rendimento de um investimento num mês (null antes do 1º saldo informado). */
+export function investMonth(d: Data, accountId: string, month: string): InvestMonth | null {
+  const vals = d.valuations.filter((v) => v.accountId === accountId);
+  if (!vals.length) return null;
+  const first = vals[0];
+  const today = todayISO();
+  const endDate = month === monthOf(today) ? today : lastDay(month);
+  if (endDate < first.date || month > monthOf(today)) return null;
+  const prevEnd = lastDay(addMonths(month, -1));
+  const startDate = prevEnd > first.date ? prevEnd : first.date;
+  const start = investBalanceAt(d, accountId, startDate);
+  const end = investBalanceAt(d, accountId, endDate);
+  const flows = investFlows(d, accountId, startDate, endDate);
+  const y = end - start - flows;
+  const base = start > 0 ? start + Math.max(0, flows) : Math.max(0, flows);
+  const updated = vals.some((v) => v.date > startDate && v.date <= endDate);
+  return { month, start, end, flows, yield: y, pct: base > 0 ? y / base : null, updated };
+}
+
+/** Soma de vários investimentos num mês (meses sem dados contam zero). */
+export function investTotalMonth(d: Data, ids: string[], month: string): InvestMonth {
+  const out: InvestMonth = { month, start: 0, end: 0, flows: 0, yield: 0, pct: null, updated: false };
+  let base = 0;
+  for (const id of ids) {
+    const r = investMonth(d, id, month);
+    if (!r) continue;
+    out.start += r.start; out.end += r.end; out.flows += r.flows; out.yield += r.yield;
+    out.updated ||= r.updated;
+    // % só sobre quem tinha saldo informado no período (quem ainda não começou não dilui)
+    if (r.updated) base += r.start > 0 ? r.start + Math.max(0, r.flows) : Math.max(0, r.flows);
+  }
+  out.pct = base > 0 ? out.yield / base : null;
+  return out;
 }

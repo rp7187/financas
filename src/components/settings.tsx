@@ -59,7 +59,10 @@ export function Settings({ store }: { store: Store }) {
 
   return (
     <>
-      <header class="page-head"><h1>Ajustes</h1></header>
+      <header class="page-head settings-head">
+        <button type="button" class="back-btn" onClick={() => store.go(store.from === "settings" ? "month" : store.from)}><Icon name="chevL" />Voltar</button>
+        <h1>Ajustes</h1>
+      </header>
 
       <p class="section-label">Imóveis</p>
       <ul class="ios-list">

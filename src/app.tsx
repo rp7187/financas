@@ -13,6 +13,7 @@ import { AccountSheet, type AccountTarget } from "./components/account-sheet";
 import { CategorySheet } from "./components/category-sheet";
 import { PropertySheet } from "./components/property-sheet";
 import { Icon, type IconName } from "./components/icons";
+import { Investments, ValuationSheet } from "./components/investments";
 import * as sync from "./sync";
 
 export type Store = {
@@ -33,14 +34,21 @@ export type Store = {
   openAccount: (a: AccountTarget) => void;
   openCategory: (c: Category | { type: Category["type"] }) => void;
   openProperty: (p: Property | null) => void;
+  /** Troca de tela (ex.: engrenagem → Ajustes; voltar de Ajustes). */
+  go: (tab: Tab) => void;
+  /** Tela de onde se abriu Ajustes (para o "voltar"). */
+  from: Tab;
+  /** Atualizar os saldos dos investimentos (mês). */
+  openValuations: () => void;
 };
 
-type Tab = "month" | "accounts" | "stats" | "settings";
+export type Tab = "month" | "accounts" | "stats" | "invest" | "settings";
+// Ajustes não fica na barra (engrenagem no topo das telas).
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: "month", label: "Mês", icon: "calendar" },
   { id: "accounts", label: "Contas", icon: "wallet" },
   { id: "stats", label: "Análises", icon: "chart" },
-  { id: "settings", label: "Ajustes", icon: "sliders" },
+  { id: "invest", label: "Investimentos", icon: "trend" },
 ];
 
 /**
@@ -122,6 +130,8 @@ export function App() {
   const [records, setRecords] = useState<Rec[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("month");
+  const [from, setFrom] = useState<Tab>("month");
+  const [valuations, setValuations] = useState(false);
   const [month, setMonth] = useState(thisMonth());
   const [txnSheet, setTxnSheet] = useState<Item | TxnDraft | null>(null);
   const [accountSheet, setAccountSheet] = useState<AccountTarget | undefined>(undefined);
@@ -201,6 +211,9 @@ export function App() {
     openAccount: setAccountSheet,
     openCategory: setCategorySheet,
     openProperty: setPropertySheet,
+    go: (t) => { if (t === "settings") setFrom(tab); setTab(t); window.scrollTo(0, 0); },
+    from,
+    openValuations: () => setValuations(true),
   };
 
   return (
@@ -209,6 +222,7 @@ export function App() {
         {tab === "month" && <MonthView store={store} />}
         {tab === "accounts" && <Accounts store={store} />}
         {tab === "stats" && <Stats store={store} />}
+        {tab === "invest" && <Investments store={store} />}
         {tab === "settings" && <Settings store={store} />}
       </main>
       <nav class="tabbar" aria-label="Navegação">
@@ -219,6 +233,7 @@ export function App() {
       {txnSheet && <TxnSheet store={store} target={txnSheet} onClose={() => setTxnSheet(null)} />}
       {accountSheet !== undefined && <AccountSheet store={store} account={accountSheet} onClose={() => setAccountSheet(undefined)} />}
       {categorySheet && <CategorySheet store={store} target={categorySheet} onClose={() => setCategorySheet(null)} />}
+      {valuations && <ValuationSheet store={store} onClose={() => setValuations(false)} />}
       {propertySheet !== undefined && <PropertySheet store={store} property={propertySheet} onClose={() => setPropertySheet(undefined)} />}
     </>
   );

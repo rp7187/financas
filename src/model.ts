@@ -31,6 +31,41 @@ export type Account = Base & {
   dueDay?: number;
   /** Limite, em centavos (opcional). */
   limit?: number;
+  // Só investimentos (kind "investment" ou "savings"):
+  /** Conta do mesmo banco (de onde costuma vir o aporte e para onde vai o resgate). */
+  bankId?: string;
+  /** Tipo de aplicação (para ver a divisão da carteira). */
+  assetClass?: AssetClass;
+};
+
+export type AssetClass = "fixed" | "treasury" | "stocks" | "reits" | "funds" | "pension" | "crypto" | "savings" | "other";
+export const ASSET_CLASS: Record<AssetClass, string> = {
+  fixed: "Renda fixa (CDB, LCI, LCA)",
+  treasury: "Tesouro Direto",
+  stocks: "Ações",
+  reits: "Fundos imobiliários",
+  funds: "Fundos",
+  pension: "Previdência",
+  crypto: "Cripto",
+  savings: "Poupança",
+  other: "Outro",
+};
+/** Investimento (aplicação ou poupança): saldo acompanhado pelo valor informado, fora do "disponível". */
+export const isInvestAccount = (a: Account | undefined): boolean => a?.kind === "investment" || a?.kind === "savings";
+/** Tipo de aplicação (poupança antiga sem tipo = poupança). */
+export const assetClassOf = (a: Account): AssetClass => a.assetClass ?? (a.kind === "savings" ? "savings" : "other");
+
+/**
+ * Saldo informado de um investimento (o valor que o banco mostra), um por conta por mês: id fixo
+ * `val:<conta>:<mês>` (dois aparelhos não duplicam). O rendimento sai da diferença entre saldos, descontando
+ * aportes e resgates (transferências).
+ */
+export type Valuation = Base & {
+  t: "valuation";
+  accountId: string;
+  month: string; // "AAAA-MM"
+  date: string; // dia em que o saldo foi conferido
+  balance: number; // centavos
 };
 
 export const isCard = (a: Account | undefined): boolean => a?.kind === "credit";
@@ -107,7 +142,7 @@ export type Plan = Base & {
   propertyId?: string;
 };
 
-export type Rec = Account | Category | Txn | Rule | Plan | Property;
+export type Rec = Account | Category | Txn | Rule | Plan | Property | Valuation;
 
 export const PROPERTY_KIND: Record<PropertyKind, { label: string; emoji: string }> = {
   apartment: { label: "Apartamento", emoji: "🏢" },
@@ -128,7 +163,9 @@ export const KIND_LABEL: Record<AccountKind, string> = {
 };
 
 /** Cores para contas (paleta categórica validada). */
-export const ACCOUNT_COLORS = ["#2a78d6", "#eb6834", "#199e70", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"];
+export const ACCOUNT_COLORS = ["#2a78d6", "#eb6834", "#199e70", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948", "#16171b"];
+/** Preto (cartões "black"): só por escolha; não entra na sugestão automática de cor. */
+export const BLACK = "#16171b";
 
 /** Paleta categórica (8 cores validadas nos temas claro/escuro, ver styles.css --c1..--c8). */
 export const PALETTE = ["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"] as const;
@@ -177,5 +214,5 @@ export function isRec(x: unknown): x is Rec {
   if (!x || typeof x !== "object") return false;
   const r = x as Record<string, unknown>;
   return typeof r.id === "string" && typeof r.updatedAt === "number" &&
-    ["account", "category", "txn", "rule", "plan", "property"].includes(r.t as string);
+    ["account", "category", "txn", "rule", "plan", "property", "valuation"].includes(r.t as string);
 }

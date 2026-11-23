@@ -1,33 +1,37 @@
 import type { Store } from "../app";
 import { addMonths, dayMonth, thisMonth, todayISO } from "../dates";
 import { balanceByMonth, bill, billMonthOf, cardFutureCharges, currentBalance } from "../engine";
-import { KIND_LABEL, isCard, money, type Account } from "../model";
+import { BLACK, KIND_LABEL, isCard, isInvestAccount, money, type Account } from "../model";
 import { Icon } from "./icons";
+import { PageHead } from "./page-head";
 
 /** Fundo do cartão a partir da cor da conta (escurecido para o texto branco ter contraste). */
-const cardBg = (c: string) => `linear-gradient(135deg, color-mix(in srgb, ${c} 82%, black), color-mix(in srgb, ${c} 52%, black))`;
+const cardBg = (c: string) => c === BLACK
+  ? "linear-gradient(135deg, #3b3d44, #0a0a0c)" // preto: grafite → preto (brilho discreto, como cartão black)
+  : `linear-gradient(135deg, color-mix(in srgb, ${c} 82%, black), color-mix(in srgb, ${c} 52%, black))`;
 
 export function Accounts({ store }: { store: Store }) {
   const { data } = store;
-  const accounts = data.accounts.filter((a) => !isCard(a));
+  const accounts = data.accounts.filter((a) => !isCard(a) && !isInvestAccount(a));
+  const invs = data.accounts.filter(isInvestAccount);
+  const invested = invs.reduce((s, a) => s + currentBalance(data, a.id), 0);
   const cards = data.accounts.filter(isCard);
-  const archived = data.accounts.filter((a) => a.archived);
+  const archived = data.accounts.filter((a) => a.archived && !isInvestAccount(a));
   const total = currentBalance(data);
   const m = thisMonth();
   const projected = balanceByMonth(data, m, m)[0]?.balance ?? 0;
   const inAccounts = accounts.reduce((s, a) => s + currentBalance(data, a.id), 0);
-  const cardDebt = -cards.reduce((s, a) => s + currentBalance(data, a.id), 0);
+  const cardDebt = -cards.reduce((s, a) => s + currentBalance(data, a.id), 0) || 0; // "|| 0": evita "-R$ 0,00"
 
   return (
     <>
-      <header class="page-head">
-        <h1>Contas e cartões</h1>
-      </header>
+      <PageHead store={store} title="Contas e cartões" />
       <section class="hero">
-        <p class="hero-label" style={{ marginTop: 0 }}>Saldo total agora</p>
+        <p class="hero-label" style={{ marginTop: 0 }}>Disponível agora</p>
         <div class="hero-amount num">{money(total)}</div>
         <div class="hero-sub">Previsto no fim do mês <b class="num">{money(projected)}</b></div>
         {cards.length > 0 && <div class="hero-sub">Em contas <b class="num">{money(inAccounts)}</b> · devido nos cartões <b class="num">{money(cardDebt)}</b></div>}
+        {invs.length > 0 && <div class="hero-sub">Patrimônio <b class="num">{money(total + invested)}</b> (com {money(invested)} investidos)</div>}
       </section>
 
       <div class="section-head">
@@ -62,10 +66,13 @@ export function Accounts({ store }: { store: Store }) {
 
 function AccountCard({ store, a }: { store: Store; a: Account }) {
   const bal = currentBalance(store.data, a.id);
+  const linked = store.data.accounts.filter((x) => x.bankId === a.id && isInvestAccount(x) && !x.archived);
+  const inv = linked.reduce((s, x) => s + currentBalance(store.data, x.id), 0);
   return (
-    <button type="button" class={`acc-card ${a.archived ? "archived" : ""}`} style={{ background: cardBg(a.color) }} onClick={() => store.openAccount(a)}>
+    <button type="button" class={`acc-card ${a.color === BLACK ? "black" : ""} ${a.archived ? "archived" : ""}`} style={{ background: cardBg(a.color) }} onClick={() => store.openAccount(a)}>
       <span class="top"><span>{a.name}</span><span class="kind">{KIND_LABEL[a.kind]}</span></span>
       <span class="bal num">{money(bal)}</span>
+      {linked.length > 0 && <span class="foot"><span>+ investimentos <b class="num">{money(inv)}</b></span><span>total <b class="num">{money(bal + inv)}</b></span></span>}
     </button>
   );
 }
@@ -80,7 +87,7 @@ function CreditCard({ store, a }: { store: Store; a: Account }) {
   const closed = openMonth ? bill(data, a, addMonths(openMonth, -1)) : null;
   const debt = -currentBalance(data, a.id) + cardFutureCharges(data, a.id); // limite: inclui parcelas futuras
   return (
-    <button type="button" class={`acc-card credit ${a.archived ? "archived" : ""}`} style={{ background: cardBg(a.color) }} onClick={() => store.openAccount(a)}>
+    <button type="button" class={`acc-card credit ${a.color === BLACK ? "black" : ""} ${a.archived ? "archived" : ""}`} style={{ background: cardBg(a.color) }} onClick={() => store.openAccount(a)}>
       <span class="top"><span><Icon name="card" />{a.name}</span><span class="kind">{payFrom ? `paga com ${payFrom.name}` : KIND_LABEL.credit}</span></span>
       {openMonth ? (
         <>

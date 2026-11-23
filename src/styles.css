@@ -796,3 +796,36 @@ tr:last-child td { border-bottom: 0; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar) + 24px + env(safe-area-inset-bottom)); z-index: 50;
   display: flex; align-items: center; gap: 16px; background: var(--primary); color: var(--on-primary); padding: 12px 16px; border-radius: 14px; box-shadow: var(--shadow-lg); font-size: 14.5px; max-width: calc(100vw - 32px); }
 .toast button { border: 0; background: none; color: inherit; font-weight: 750; cursor: pointer; padding: 0; text-decoration: underline; }
+
+/* Cor preta: contorno para aparecer no tema escuro */
+:root[data-theme="dark"] :is(.color.black, .acc-card.black) { outline: 1px solid rgb(255 255 255 / 0.18); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) :is(.color.black, .acc-card.black) { outline: 1px solid rgb(255 255 255 / 0.18); } }
+
+/* Cabeçalho com engrenagem */
+.head-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.icon-btn { width: 40px; height: 40px; border-radius: 50%; border: 0; background: var(--surface); box-shadow: var(--shadow); color: var(--text-2); display: grid; place-items: center; cursor: pointer; }
+.settings-head { flex-direction: column; align-items: flex-start; gap: 4px; }
+.back-btn { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; color: var(--brand); font-size: 16px; font-weight: 600; padding: 4px 0; cursor: pointer; margin-left: -6px; }
+.invest-actions { display: flex; flex-direction: column; gap: 8px; }
+
+/* Investimentos */
+.empty-invest { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.empty-invest p { margin: 0; }
+.inv-row { padding-left: 14px; }
+.inv-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.pill.gain { background: color-mix(in srgb, var(--income) 15%, var(--surface)); color: var(--income-text); }
+.inv-pt { fill: var(--surface); stroke: var(--line); stroke-width: 2; }
+.alloc { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.alloc li { display: grid; grid-template-columns: 12px 1fr auto 40px; align-items: center; gap: 8px; font-size: 14px; }
+.alloc small { color: var(--muted); text-align: right; }
+.sw.c1, .seg-c1 { background: var(--c1); } .sw.c2, .seg-c2 { background: var(--c2); } .sw.c3, .seg-c3 { background: var(--c3); } .sw.c4, .seg-c4 { background: var(--c4); }
+.sw.c5, .seg-c5 { background: var(--c5); } .sw.c6, .seg-c6 { background: var(--c6); } .sw.c7, .seg-c7 { background: var(--c7); } .sw.c8, .seg-c8 { background: var(--c8); }
+.val-row { display: flex; flex-direction: column; gap: 4px; }
+.val-row .money-field { border-radius: 14px; padding: 0 12px; }
+.val-row .money-field span { font-size: 15px; }
+.sheet .val-row .money-field input { font-size: 22px; min-height: 50px; padding: 6px 0; }
+.val-row small { font-size: 12px; padding: 0 4px; }
+.tabbar button.tab { white-space: nowrap; letter-spacing: -0.01em; }
+.inv-row { width: 100%; }
+.bank-head span:first-child { text-transform: none; }
+.group > li + li .inv-row { border-top: 1px solid var(--border); }

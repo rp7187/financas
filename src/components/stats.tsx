@@ -7,6 +7,7 @@ import { PROPERTY_KIND, colorOf, isInvestment, money, moneyCompact, reais, signe
 import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName } from "./icons";
 import { Simulator } from "./simulator";
+import { PageHead } from "./page-head";
 
 /** Duração do período analisado, em meses. */
 const LENGTHS = [
@@ -133,7 +134,7 @@ export function Stats({ store }: { store: Store }) {
 
   return (
     <>
-      <header class="page-head"><h1>Análises</h1></header>
+      <PageHead store={store} title="Análises" />
 
       {/* ---------- Período (cartão de destaque) ---------- */}
       <section class="hero hero-stats">
@@ -191,10 +192,10 @@ export function Stats({ store }: { store: Store }) {
         )}
       </section>
 
-      {data.accounts.filter((a) => !a.archived).length > 1 && (
+      {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).length > 1 && (
         <div class="chips scroll" role="group" aria-label="Conta">
           <button type="button" class={`chip ${!acc ? "on" : ""}`} onClick={() => setAccountId("")}>Todas as contas</button>
-          {data.accounts.filter((a) => !a.archived).map((a) => (
+          {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).map((a) => (
             <button key={a.id} type="button" class={`chip ${acc === a.id ? "on" : ""}`} onClick={() => setAccountId(a.id)}><i class="sw" style={{ background: a.color }} />{a.name}</button>
           ))}
         </div>

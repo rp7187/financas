@@ -1,6 +1,8 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
-import { ACCOUNT_COLORS, KIND_LABEL, uid, type Account, type AccountKind } from "../model";
+import { todayISO } from "../dates";
+import { currentBalance } from "../engine";
+import { ACCOUNT_COLORS, ASSET_CLASS, BLACK, KIND_LABEL, isInvestAccount, money, uid, type Account, type AccountKind, type AssetClass, type Valuation } from "../model";
 import { MoneyInput, Sheet } from "./sheet";
 
 /** Conta existente, nova (null) ou nova de um tipo já escolhido (ex.: botão "+ Cartão"). */
@@ -15,15 +17,20 @@ export function AccountSheet({ store, account: target, onClose }: { store: Store
   const [kind, setKind] = useState<AccountKind>(target?.kind ?? "checking");
   const [initial, setInitial] = useState(Math.abs(account?.initialBalance ?? 0));
   const [negative, setNegative] = useState((account?.initialBalance ?? 0) < 0);
-  const [color, setColor] = useState(account?.color ?? ACCOUNT_COLORS[store.data.accounts.length % ACCOUNT_COLORS.length]);
+  const [color, setColor] = useState(account?.color ?? ACCOUNT_COLORS[store.data.accounts.length % (ACCOUNT_COLORS.length - 1)]);
   const [payFromId, setPayFromId] = useState(account?.payFromId ?? payable[0]?.id ?? "");
   const [closingDay, setClosingDay] = useState(account?.closingDay ? String(account.closingDay) : "");
   const [dueDay, setDueDay] = useState(account?.dueDay ? String(account.dueDay) : "");
   const [limit, setLimit] = useState(account?.limit ?? 0);
+  const banks = store.data.accounts.filter((a) => (a.kind === "checking" || a.kind === "cash") && (!a.archived || a.id === account?.bankId));
+  const [bankId, setBankId] = useState(account?.bankId ?? "");
+  const [assetClass, setAssetClass] = useState<AssetClass>(account?.assetClass ?? (target?.kind === "savings" ? "savings" : account ? "other" : "fixed"));
+  const [startValue, setStartValue] = useState(0); // investimento novo: saldo de hoje
   const [error, setError] = useState<string | null>(null);
   const used = account ? store.data.txns.some((t) => t.accountId === account.id || t.toAccountId === account.id) || store.data.rules.some((r) => r.accountId === account.id) : false;
   const card = kind === "credit";
-  const noun = card ? "cartão" : "conta";
+  const invest = isInvestAccount({ kind } as Account);
+  const noun = card ? "cartão" : invest ? "investimento" : "conta";
 
   async function submit(e: Event) {
     e.preventDefault();
@@ -34,20 +41,27 @@ export function AccountSheet({ store, account: target, onClose }: { store: Store
       if (!dayOk(dueDay)) return setError("Dia do vencimento: de 1 a 31.");
       if (Number(closingDay) === Number(dueDay)) return setError("Fechamento e vencimento precisam ser em dias diferentes.");
     }
-    // campos de cartão só existem em cartão (somem se o tipo mudar)
-    const { payFromId: _p, closingDay: _c, dueDay: _d, limit: _l, ...rest } = account ?? ({} as Partial<Account>);
+    // campos de cartão/investimento só existem nesses tipos (somem se o tipo mudar)
+    const { payFromId: _p, closingDay: _c, dueDay: _d, limit: _l, bankId: _b, assetClass: _a, ...rest } = account ?? ({} as Partial<Account>);
     const rec = {
       ...(account ? rest : { id: uid(), t: "account", order: store.data.accounts.length, updatedAt: 0 }),
       name: name.trim(), kind, color,
-      initialBalance: card ? (account?.initialBalance ?? 0) : negative ? -initial : initial,
+      initialBalance: card || invest ? (account?.initialBalance ?? 0) : negative ? -initial : initial, // investimento: saldo vem do valor informado
       ...(card ? { payFromId, closingDay: Number(closingDay), dueDay: Number(dueDay), ...(limit > 0 ? { limit } : {}) } : {}),
+      ...(invest ? { assetClass, ...(bankId ? { bankId } : {}) } : {}),
     } as Account;
-    await store.put([rec]);
+    const recs: (Account | Valuation)[] = [rec];
+    // investimento novo: o saldo de hoje vira o 1º saldo informado (ponto de partida do rendimento)
+    if (invest && !account && startValue > 0) {
+      const today = todayISO();
+      recs.push({ id: `val:${rec.id}:${today.slice(0, 7)}`, t: "valuation", accountId: rec.id, month: today.slice(0, 7), date: today, balance: startValue, updatedAt: 0 });
+    }
+    await store.put(recs);
     onClose();
   }
 
   return (
-    <Sheet title={account ? `Editar ${noun}` : card ? "Novo cartão" : "Nova conta"} onClose={onClose} onSubmit={submit}
+    <Sheet title={account ? `Editar ${noun}` : card ? "Novo cartão" : invest ? "Novo investimento" : "Nova conta"} onClose={onClose} onSubmit={submit}
       actions={<>
         {account && (
           used ? (
@@ -67,7 +81,34 @@ export function AccountSheet({ store, account: target, onClose }: { store: Store
           {(Object.keys(KIND_LABEL) as AccountKind[]).map((k) => <option key={k} value={k}>{KIND_LABEL[k]}</option>)}
         </select>
       </label>
-      {card ? (
+      {invest ? (
+        <>
+          <label>Tipo de aplicação
+            <select value={assetClass} onChange={(e) => setAssetClass(e.currentTarget.value as AssetClass)}>
+              {(Object.keys(ASSET_CLASS) as AssetClass[]).map((k) => <option key={k} value={k}>{ASSET_CLASS[k]}</option>)}
+            </select>
+          </label>
+          <label>Banco (conta vinculada)
+            <select value={bankId} onChange={(e) => setBankId(e.currentTarget.value)}>
+              <option value="">— nenhum —</option>
+              {banks.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </label>
+          <p class="muted small hint">A conta vinculada é usada nos aportes e resgates, e o saldo aparece junto dela em Contas.</p>
+          {!account ? (
+            <MoneyInput label="Saldo hoje (o que o banco mostra)" value={startValue} onChange={setStartValue} />
+          ) : (
+            <div class="invest-actions">
+              <p class="muted small">Saldo agora: <b class="num">{money(currentBalance(store.data, account.id))}</b></p>
+              <div class="two">
+                <button type="button" class="btn ghost" onClick={() => { onClose(); store.openTxn({ draft: true, type: "transfer", accountId: account.bankId || banks[0]?.id, toAccountId: account.id, description: `Aplicação ${account.name}` }); }}>Aplicar</button>
+                <button type="button" class="btn ghost" onClick={() => { onClose(); store.openTxn({ draft: true, type: "transfer", accountId: account.id, toAccountId: account.bankId || banks[0]?.id, description: `Resgate ${account.name}` }); }}>Resgatar</button>
+              </div>
+              <button type="button" class="btn ghost wide" onClick={() => { onClose(); store.openValuations(); }}>Atualizar saldo do mês</button>
+            </div>
+          )}
+        </>
+      ) : card ? (
         <>
           <label>Pagar a fatura com a conta
             <select value={payFromId} onChange={(e) => { setPayFromId(e.currentTarget.value); setError(null); }}>
@@ -92,7 +133,7 @@ export function AccountSheet({ store, account: target, onClose }: { store: Store
         <span class="label">Cor</span>
         <div class="colors">
           {ACCOUNT_COLORS.map((c) => (
-            <button key={c} type="button" class={`color ${color === c ? "on" : ""}`} style={{ background: c }} aria-label={`Cor ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} />
+            <button key={c} type="button" class={`color ${color === c ? "on" : ""} ${c === BLACK ? "black" : ""}`} style={{ background: c }} aria-label={c === BLACK ? "Cor preta" : `Cor ${c}`} aria-pressed={color === c} onClick={() => setColor(c)} />
           ))}
         </div>
       </div>
