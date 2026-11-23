@@ -5,7 +5,8 @@ Controle financeiro pessoal/familiar: **contas** (vários bancos), **receitas e 
 entre contas, **imóveis** (custos associados, opcional), pago/pendente e **análises** com previsão dos próximos meses.
 
 - PWA: roda no Safari do iPhone e do Mac e pode ser instalado (tela de início / Dock), sem loja de apps.
-- Funciona offline; dados no aparelho (IndexedDB). Sincronização em família: fase 2 (ver `CLAUDE.md`).
+- Funciona offline; dados no aparelho (IndexedDB). Sincronização em família (Mac + iPhones) criptografada no aparelho:
+  Ajustes → Família e sincronização (ver `CLAUDE.md`). Publicado em https://rp7187.github.io/financas/
 - Leve: ~26 KB (gzip) de JS + CSS; única dependência é o Preact.
 
 ## Uso

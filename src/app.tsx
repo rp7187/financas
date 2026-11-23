@@ -13,6 +13,7 @@ import { AccountSheet, type AccountTarget } from "./components/account-sheet";
 import { CategorySheet } from "./components/category-sheet";
 import { PropertySheet } from "./components/property-sheet";
 import { Icon, type IconName } from "./components/icons";
+import * as sync from "./sync";
 
 export type Store = {
   records: Rec[];
@@ -26,6 +27,8 @@ export type Store = {
   /** Importação de backup: mantém, por id, a versão mais recente. */
   importRecords: (rs: Rec[]) => Promise<number>;
   clear: () => Promise<void>;
+  /** Estado da sincronização com a família. */
+  sync: sync.SyncState;
   openTxn: (x: Item | TxnDraft) => void;
   openAccount: (a: AccountTarget) => void;
   openCategory: (c: Category | { type: Category["type"] }) => void;
@@ -104,6 +107,17 @@ async function migrateDefaults(rs: Rec[], version: number): Promise<Rec[]> {
   return [...byId.values()];
 }
 
+/** Convite no endereço (#familia=…): oferece entrar e tira a chave da barra de endereço. */
+function handleInvite() {
+  const invite = sync.parseInvite(location.hash);
+  if (!invite) return;
+  history.replaceState(null, "", location.pathname + location.search);
+  if (sync.getState().status !== "off") return alert("Este aparelho já sincroniza com uma família.");
+  if (confirm("Entrar na família deste convite? Os dados da família serão trazidos para este aparelho (o que só existe aqui é acrescentado).")) {
+    sync.joinFamily(`familia=${invite.familyId}.${invite.key}`).catch((e) => alert(e instanceof Error ? e.message : String(e)));
+  }
+}
+
 export function App() {
   const [records, setRecords] = useState<Rec[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +127,7 @@ export function App() {
   const [accountSheet, setAccountSheet] = useState<AccountTarget | undefined>(undefined);
   const [categorySheet, setCategorySheet] = useState<Category | { type: Category["type"] } | null>(null);
   const [propertySheet, setPropertySheet] = useState<Property | null | undefined>(undefined);
+  const [syncState, setSyncState] = useState<sync.SyncState>(sync.getState());
 
   useEffect(() => {
     (async () => {
@@ -127,6 +142,18 @@ export function App() {
         await db.setMeta("seeded", DEFAULTS_VERSION);
       }
       setRecords(rs);
+      // Sincronização: o que chega de outro aparelho entra direto na tela.
+      await sync.initSync({
+        onRemote: (changed) => setRecords((cur) => {
+          const map = new Map((cur ?? []).map((r) => [r.id, r]));
+          for (const r of changed) map.set(r.id, r);
+          return [...map.values()];
+        }),
+        onState: setSyncState,
+      });
+      // Link de convite aberto no navegador (#familia=…), ao abrir ou com o app já aberto.
+      handleInvite();
+      window.addEventListener("hashchange", handleInvite);
     })().catch((e) => setError(String(e)));
     db.requestPersist();
   }, []);
@@ -154,19 +181,22 @@ export function App() {
     data,
     month,
     setMonth,
-    put: (rs) => { const now = Date.now(); return save(rs.map((r) => ({ ...r, updatedAt: now }))); },
-    del: (rs) => { const now = Date.now(); return save(rs.map((r) => ({ ...r, deleted: true as const, updatedAt: now }))); },
+    put: async (rs) => { const now = Date.now(); await save(rs.map((r) => ({ ...r, updatedAt: now }))); sync.markDirty(rs.map((r) => r.id)); },
+    del: async (rs) => { const now = Date.now(); await save(rs.map((r) => ({ ...r, deleted: true as const, updatedAt: now }))); sync.markDirty(rs.map((r) => r.id)); },
     importRecords: async (rs) => {
       const cur = new Map(records.map((r) => [r.id, r]));
       const newer = rs.filter((r) => !cur.has(r.id) || cur.get(r.id)!.updatedAt < r.updatedAt);
       await save(newer);
+      sync.markDirty(newer.map((r) => r.id));
       return newer.length;
     },
     clear: async () => {
+      await sync.leaveFamily(false); // este aparelho para de sincronizar (a família na nuvem continua)
       await db.clearAll();
       await db.setMeta("seeded", 0);
       location.reload();
     },
+    sync: syncState,
     openTxn: setTxnSheet,
     openAccount: setAccountSheet,
     openCategory: setCategorySheet,

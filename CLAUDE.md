@@ -25,11 +25,20 @@ Nenhuma versão nova pode perder ou tornar ilegível o que já foi gravado.
 - `plan` (parcelado) grava uma `txn` por parcela (`planId`, `installment`).
 - Transferência = `txn` com `type: "transfer"`, `accountId` → `toAccountId`; não entra em receitas/despesas.
 
-## Fase 2 (planejada): família + sincronização
+## Fase 2: família + sincronização (`src/sync.ts`, `supabase/schema.sql`)
 
-Supabase (plano gratuito) como depósito de registros criptografados no aparelho (AES-GCM, chave da
-família compartilhada por link de convite, no fragmento `#` da URL). Mescla por registro: vale o maior
-`updatedAt`. Login por e-mail (código). O servidor nunca vê dados em claro.
+Supabase (plano gratuito) como depósito de registros criptografados no aparelho (AES-GCM 256, iv aleatório,
+id como dado autenticado). A chave da família só existe nos aparelhos (meta `sync` no IndexedDB) e no link de
+convite (`#familia=<id>.<chave>`, no fragmento da URL). Sem login: o aparelho manda uma "prova" derivada da
+chave e o servidor guarda só o SHA-256 dela; as tabelas não são acessíveis pela chave pública, só as funções
+`create_family` / `push_records` / `pull_records` / `delete_family`.
+
+- Mescla por registro: vale o maior `updatedAt` (no servidor e no aparelho). Alterações locais ficam em
+  meta `syncDirty` até o servidor confirmar. `rev` (sequência do servidor) permite buscar só o que mudou;
+  1×/dia o aparelho refaz a busca completa.
+- Ao entrar numa família, os dados da família prevalecem; o que só existe no aparelho é acrescentado.
+- Mudança no schema do servidor: editar `supabase/schema.sql` mantendo-o reexecutável e avisar o usuário
+  para rodá-lo no SQL Editor (não há acesso de administrador ao banco pelo app).
 
 ## Publicação
 

@@ -5,6 +5,7 @@ import { requestPersist } from "../db";
 import { byProperty, monthItems } from "../engine";
 import { PROPERTY_KIND, colorOf, isInvestment, isRec, money, type Flow } from "../model";
 import { Icon } from "./icons";
+import { FamilySync } from "./family-sync";
 import { getTheme, setTheme, type Theme } from "../theme";
 
 export function Settings({ store }: { store: Store }) {
@@ -98,14 +99,7 @@ export function Settings({ store }: { store: Store }) {
       </section>
 
       <p class="section-label">Família e sincronização</p>
-      <ul class="ios-list">
-        <li>
-          <div class="ios-row" style={{ cursor: "default" }}>
-            <span class="ic"><Icon name="cloud" /></span>
-            <span class="grow"><span>Em breve</span><small>Login por e-mail, convite da família e sincronização Mac + iPhones, com criptografia no aparelho.</small></span>
-          </div>
-        </li>
-      </ul>
+      <FamilySync store={store} />
 
       <p class="section-label">Backup</p>
       <ul class="ios-list">
