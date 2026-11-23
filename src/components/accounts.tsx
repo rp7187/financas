@@ -5,6 +5,8 @@ import { BLACK, KIND_LABEL, isCard, isInvestAccount, money, type Account } from 
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
 import { ReorderSheet } from "./reorder-sheet";
+import { SwipeRow, UndoToast } from "./swipe";
+import { accountSwipe, type Toast } from "./account-actions";
 import { useState } from "preact/hooks";
 
 /** Fundo do cartão a partir da cor da conta (escurecido para o texto branco ter contraste). */
@@ -15,6 +17,17 @@ const cardBg = (c: string) => c === BLACK
 export function Accounts({ store }: { store: Store }) {
   const { data } = store;
   const [reorder, setReorder] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
+  /** Cartão da lista com deslizar (excluir/arquivar; reativar nos arquivados). */
+  const swipe = (a: Account) => {
+    const act = accountSwipe(store, a, setToast);
+    return (
+      <SwipeRow key={a.id} id={a.id} tag="div" class="card-swipe" openId={openId} setOpenId={setOpenId} left={act.left} right={act.right}>
+        {isCard(a) ? <CreditCard store={store} a={a} /> : <AccountCard store={store} a={a} />}
+      </SwipeRow>
+    );
+  };
   const accounts = data.accounts.filter((a) => !isCard(a) && !isInvestAccount(a));
   const invs = data.accounts.filter(isInvestAccount);
   const invested = invs.reduce((s, a) => s + currentBalance(data, a.id), 0);
@@ -45,7 +58,7 @@ export function Accounts({ store }: { store: Store }) {
         <button type="button" class="btn small ghost" onClick={() => store.openAccount(null)}><Icon name="plus" />Conta</button>
       </div>
       <div class="acc-cards">
-        {accounts.filter((a) => !a.archived).map((a) => <AccountCard key={a.id} store={store} a={a} />)}
+        {accounts.filter((a) => !a.archived).map(swipe)}
       </div>
       <button type="button" class="btn ghost wide" onClick={() => store.openTxn({ draft: true, type: "transfer" })}><Icon name="swap" />Transferir entre contas</button>
 
@@ -54,7 +67,7 @@ export function Accounts({ store }: { store: Store }) {
         <button type="button" class="btn small ghost" onClick={() => store.openAccount({ kind: "credit" })}><Icon name="plus" />Cartão</button>
       </div>
       {cards.some((a) => !a.archived) ? (
-        <div class="acc-cards">{cards.filter((a) => !a.archived).map((a) => <CreditCard key={a.id} store={store} a={a} />)}</div>
+        <div class="acc-cards">{cards.filter((a) => !a.archived).map(swipe)}</div>
       ) : (
         <p class="muted small empty-note">Cadastre um cartão para lançar compras nele: cada compra entra na categoria no dia em que foi feita, e a fatura aparece para pagar no vencimento.</p>
       )}
@@ -62,10 +75,11 @@ export function Accounts({ store }: { store: Store }) {
       {archived.length > 0 && (
         <>
           <p class="section-label">Arquivados</p>
-          <div class="acc-cards">{archived.map((a) => (isCard(a) ? <CreditCard key={a.id} store={store} a={a} /> : <AccountCard key={a.id} store={store} a={a} />))}</div>
+          <div class="acc-cards">{archived.map(swipe)}</div>
         </>
       )}
-      <p class="muted small" style={{ textAlign: "center" }}>Saldo = saldo inicial + o que já foi pago/recebido. Toque numa conta ou cartão para editar.</p>
+      <p class="muted small" style={{ textAlign: "center" }}>Saldo = saldo inicial + o que já foi pago/recebido. Toque numa conta ou cartão para editar · deslize para a esquerda para excluir.</p>
+      <UndoToast toast={toast} onDone={() => setToast(null)} />
     </>
   );
 }

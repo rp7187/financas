@@ -14,8 +14,11 @@ const TRIGGER = 72; // px para disparar a ação da direita / abrir o Excluir
 const OPEN = 88; // largura do botão Excluir aberto
 const FULL = 0.55; // fração da largura para excluir direto
 
-export function SwipeRow({ id, openId, setOpenId, left, right, children }: {
+export function SwipeRow({ id, openId, setOpenId, left, right, children, tag = "li", class: cls = "" }: {
   id: string;
+  /** elemento externo: "li" (listas) ou "div" (ex.: cartões da aba Contas) */
+  tag?: "li" | "div";
+  class?: string;
   openId: string | null;
   setOpenId: (id: string | null) => void;
   /** ação ao deslizar para a DIREITA (aparece à esquerda) */
@@ -31,7 +34,8 @@ export function SwipeRow({ id, openId, setOpenId, left, right, children }: {
 
   useEffect(() => { if (!isOpen && !drag) setDx(0); }, [isOpen]);
 
-  if (!left && !right) return <li class="swipe">{children}</li>;
+  const Tag = tag;
+  if (!left && !right) return <Tag class={`swipe ${cls}`}>{children}</Tag>;
 
   const onDown = (e: PointerEvent) => {
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -80,7 +84,7 @@ export function SwipeRow({ id, openId, setOpenId, left, right, children }: {
   const showLeft = dx > 0 && left;
   const showRight = dx < 0 && right;
   return (
-    <li class="swipe">
+    <Tag class={`swipe ${cls}`}>
       {showLeft && (
         <div class={`swipe-bg ${left!.tone} ${dx > TRIGGER ? "armed" : ""}`} aria-hidden="true"><span>{left!.label}</span></div>
       )}
@@ -93,7 +97,7 @@ export function SwipeRow({ id, openId, setOpenId, left, right, children }: {
         onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onClickCapture={onClickCapture}>
         {children}
       </div>
-    </li>
+    </Tag>
   );
 }
 

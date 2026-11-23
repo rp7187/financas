@@ -5,6 +5,8 @@ import { currentBalance, investBalanceAt, investFlows, investMonth, investTotalM
 import { ASSET_CLASS, assetClassOf, money, moneyCompact, moneyShort, reais, signedMoney, type Account, type AssetClass, type Valuation } from "../model";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
+import { SwipeRow, UndoToast } from "./swipe";
+import { accountSwipe, type Toast } from "./account-actions";
 import { MoneyInput, Sheet } from "./sheet";
 
 /*
@@ -19,6 +21,8 @@ const CLASS_ORDER = Object.keys(ASSET_CLASS) as AssetClass[];
 export function Investments({ store }: { store: Store }) {
   const { data } = store;
   const [table, setTable] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [toast, setToast] = useState<Toast | null>(null);
   const cur = thisMonth();
   const year = cur.slice(0, 4);
   const invs = data.accounts.filter((a) => data.investments.has(a.id));
@@ -92,8 +96,9 @@ export function Investments({ store }: { store: Store }) {
                 <ul class="group">
                   {list.map((a) => {
                     const r = investMonth(data, a.id, cur);
+                    const act = accountSwipe(store, a, setToast);
                     return (
-                      <li key={a.id}>
+                      <SwipeRow key={a.id} id={a.id} openId={openId} setOpenId={setOpenId} right={act.right}>
                         <button type="button" class="row-main inv-row" onClick={() => store.openAccount(a)}>
                           <span class="inv-dot" style={{ background: a.color }} />
                           <span class="what">
@@ -107,7 +112,7 @@ export function Investments({ store }: { store: Store }) {
                               : <span class="pill">{!r ? "sem histórico" : data.valuations.find((v) => v.accountId === a.id)?.month === cur ? "acompanhando desde este mês" : "saldo não atualizado"}</span>}
                           </span>
                         </button>
-                      </li>
+                      </SwipeRow>
                     );
                   })}
                 </ul>
@@ -154,11 +159,31 @@ export function Investments({ store }: { store: Store }) {
               </ul>
             </section>
           )}
+          {invs.some((a) => a.archived) && (
+            <section>
+              <div class="day-head bank-head"><span>Arquivados</span></div>
+              <ul class="group">
+                {invs.filter((a) => a.archived).map((a) => {
+                  const act = accountSwipe(store, a, setToast);
+                  return (
+                    <SwipeRow key={a.id} id={a.id} openId={openId} setOpenId={setOpenId} left={act.left} right={act.right}>
+                      <button type="button" class="row-main inv-row archived" onClick={() => store.openAccount(a)}>
+                        <span class="inv-dot" style={{ background: a.color }} />
+                        <span class="what"><span class="desc">{a.name}</span><span class="sub">{ASSET_CLASS[assetClassOf(a)]} · deslize para a direita para reativar</span></span>
+                        <span class="right"><span class="amount num">{money(bal.get(a.id) ?? 0)}</span></span>
+                      </button>
+                    </SwipeRow>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
           <p class="muted small" style={{ textAlign: "center" }}>
-            Aplicar e resgatar: toque no investimento. Investimentos ficam fora do saldo disponível (aba Mês) e entram no patrimônio (aba Contas).
+            Aplicar e resgatar: toque no investimento · deslize para a esquerda para excluir. Investimentos ficam fora do saldo disponível (aba Mês) e entram no patrimônio (aba Contas).
           </p>
         </>
       )}
+      <UndoToast toast={toast} onDone={() => setToast(null)} />
     </>
   );
 }

@@ -62,6 +62,8 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
 
   const cats = data.categories.filter((c) => c.type === type && (!c.archived || c.id === categoryId));
   const n = Math.max(0, Math.floor(Number(count) || 0));
+  /** Lançamento único já gravado: pode virar mensal (o próprio lançamento vira o 1º mês confirmado). */
+  const canMakeMonthly = !!item && !item.virtual && !item.rule && !item.plan && !item.bill && !item.txn.ruleId && !item.txn.planId && type !== "transfer";
 
   function validate(): string | null {
     if (amount <= 0) return "Informe o valor.";
@@ -71,7 +73,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       if (!toAccountId || toAccountId === accountId) return "Escolha contas diferentes de origem e destino.";
     } else if (!categoryId) return "Escolha a categoria.";
     if (isNew && repeat === "installments" && (n < 2 || n > 120)) return "Parcelas: de 2 a 120.";
-    if (isNew && repeat === "monthly" && endMonth && endMonth < monthOf(date)) return "O fim da recorrência é antes do início.";
+    if ((isNew || canMakeMonthly) && repeat === "monthly" && endMonth && endMonth < monthOf(date)) return "O fim da recorrência é antes do início.";
     return null;
   }
 
@@ -134,6 +136,17 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       if (!item!.virtual) recs.push({ ...item!.txn, ...b, ruleId: m === r.startMonth ? r.id : recs[1].id, ruleMonth: m });
       else if (paid && !onCard) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: m === r.startMonth ? r.id : recs[1].id, ruleMonth: m } as Txn);
       await store.put(recs);
+      return onClose();
+    }
+
+    // Despesa/receita única que passa a ser mensal: cria a recorrente e o lançamento vira o 1º mês (mesmo id)
+    if (canMakeMonthly && repeat === "monthly") {
+      const rule: Rule = {
+        id: uid(), t: "rule", updatedAt: 0, type: type as Flow, amount, description: b.description, categoryId, accountId,
+        day: Number(date.slice(8, 10)), startMonth: monthOf(date), ...(endMonth ? { endMonth } : {}),
+        ...(b.propertyId ? { propertyId: b.propertyId } : {}),
+      };
+      await store.put([rule, { ...item!.txn, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn]);
       return onClose();
     }
 
@@ -283,14 +296,15 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         </label>
       )}
 
-      {isNew && type !== "transfer" && (
+      {(isNew || canMakeMonthly) && type !== "transfer" && (
         <div class="field">
           <span class="label">Repetição</span>
           <div class="seg wide" role="group" aria-label="Repetição">
-            {([["once", "Única"], ["monthly", "Todo mês"], ["installments", "Parcelada"]] as const).map(([k, l]) => (
+            {(isNew ? ([["once", "Única"], ["monthly", "Todo mês"], ["installments", "Parcelada"]] as const) : ([["once", "Única"], ["monthly", "Todo mês"]] as const)).map(([k, l]) => (
               <button key={k} type="button" class={repeat === k ? "on" : ""} aria-pressed={repeat === k} onClick={() => { setRepeat(k); setError(null); }}>{l}</button>
             ))}
           </div>
+          {!isNew && repeat === "monthly" && <p class="muted small hint">Este lançamento vira o 1º mês ({monthLong(monthOf(date)).toLowerCase()}); os próximos aparecem como previstos.</p>}
           {repeat === "monthly" && (
             <label>Até (opcional — em branco = sem fim)<input type="month" value={endMonth} min={monthOf(date)} onInput={(e) => setEndMonth(e.currentTarget.value)} /></label>
           )}
