@@ -35,7 +35,7 @@ export function indexData(records: Rec[]): Data {
     else if (r.t === "valuation") d.valuations.push(r);
   }
   d.valuations.sort((a, b) => a.date.localeCompare(b.date) || a.month.localeCompare(b.month));
-  d.accounts.sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, "pt-BR"));
+  d.accounts.sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, "pt-BR"));
   for (const a of d.accounts) { if (isCard(a)) d.cards.add(a.id); if (isInvestAccount(a)) d.investments.add(a.id); }
   d.variable = variableAverage(d);
   d.categories.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));

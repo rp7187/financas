@@ -4,6 +4,8 @@ import { balanceByMonth, bill, billMonthOf, cardFutureCharges, currentBalance } 
 import { BLACK, KIND_LABEL, isCard, isInvestAccount, money, type Account } from "../model";
 import { Icon } from "./icons";
 import { PageHead } from "./page-head";
+import { ReorderSheet } from "./reorder-sheet";
+import { useState } from "preact/hooks";
 
 /** Fundo do cartão a partir da cor da conta (escurecido para o texto branco ter contraste). */
 const cardBg = (c: string) => c === BLACK
@@ -12,6 +14,7 @@ const cardBg = (c: string) => c === BLACK
 
 export function Accounts({ store }: { store: Store }) {
   const { data } = store;
+  const [reorder, setReorder] = useState(false);
   const accounts = data.accounts.filter((a) => !isCard(a) && !isInvestAccount(a));
   const invs = data.accounts.filter(isInvestAccount);
   const invested = invs.reduce((s, a) => s + currentBalance(data, a.id), 0);
@@ -25,7 +28,10 @@ export function Accounts({ store }: { store: Store }) {
 
   return (
     <>
-      <PageHead store={store} title="Contas e cartões" />
+      <PageHead store={store} title="Contas e cartões">
+        {data.accounts.filter((a) => !a.archived).length > 1 && <button type="button" class="btn small ghost" onClick={() => setReorder(true)}>Ordenar</button>}
+      </PageHead>
+      {reorder && <ReorderSheet store={store} onClose={() => setReorder(false)} />}
       <section class="hero">
         <p class="hero-label" style={{ marginTop: 0 }}>Disponível agora</p>
         <div class="hero-amount num">{money(total)}</div>

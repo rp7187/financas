@@ -44,7 +44,7 @@ export function AccountSheet({ store, account: target, onClose }: { store: Store
     // campos de cartão/investimento só existem nesses tipos (somem se o tipo mudar)
     const { payFromId: _p, closingDay: _c, dueDay: _d, limit: _l, bankId: _b, assetClass: _a, ...rest } = account ?? ({} as Partial<Account>);
     const rec = {
-      ...(account ? rest : { id: uid(), t: "account", order: store.data.accounts.length, updatedAt: 0 }),
+      ...(account ? rest : { id: uid(), t: "account", order: Math.max(-1, ...store.data.accounts.map((a) => a.order ?? 0)) + 1, updatedAt: 0 }),
       name: name.trim(), kind, color,
       initialBalance: card || invest ? (account?.initialBalance ?? 0) : negative ? -initial : initial, // investimento: saldo vem do valor informado
       ...(card ? { payFromId, closingDay: Number(closingDay), dueDay: Number(dueDay), ...(limit > 0 ? { limit } : {}) } : {}),
