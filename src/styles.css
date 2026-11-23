@@ -780,3 +780,19 @@ tr:last-child td { border-bottom: 0; }
 .join-banner p { margin: 0; font-size: 14px; line-height: 1.45; color: var(--text-2); }
 .join-banner b { color: var(--text); }
 .join-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Deslizar nas linhas */
+.group { overflow: hidden; }
+.swipe { position: relative; }
+.swipe-fg { position: relative; background: var(--surface); touch-action: pan-y; -webkit-user-select: none; user-select: none; }
+.swipe-fg.anim { transition: transform 0.22s ease; }
+.swipe-bg { position: absolute; inset: 0; display: flex; align-items: center; color: #fff; font-weight: 650; font-size: 15px; }
+.swipe-bg.pay { background: color-mix(in srgb, var(--income) 70%, var(--surface)); padding-left: 22px; }
+.swipe-bg.unpay { background: color-mix(in srgb, var(--muted) 70%, var(--surface)); padding-left: 22px; }
+.swipe-bg.pay.armed { background: var(--income); }
+.swipe-bg.unpay.armed { background: var(--muted); }
+.swipe-bg.del { background: var(--danger); justify-content: flex-end; }
+.swipe-bg.del button { height: 100%; min-width: 88px; border: 0; background: none; color: #fff; font-weight: 650; font-size: 15px; cursor: pointer; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--tabbar) + 24px + env(safe-area-inset-bottom)); z-index: 50;
+  display: flex; align-items: center; gap: 16px; background: var(--primary); color: var(--on-primary); padding: 12px 16px; border-radius: 14px; box-shadow: var(--shadow-lg); font-size: 14.5px; max-width: calc(100vw - 32px); }
+.toast button { border: 0; background: none; color: inherit; font-weight: 750; cursor: pointer; padding: 0; text-decoration: underline; }

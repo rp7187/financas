@@ -4,6 +4,7 @@ import { addMonths, dayLabel, dayMonth, monthLong, thisMonth, todayISO } from ".
 import { balanceByMonth, currentBalance, effect, monthItems, monthTotals, type Item } from "../engine";
 import type { TxnDraft } from "./txn-sheet";
 import { JoinBanner } from "./family-sync";
+import { SwipeRow, UndoToast, type SwipeAction } from "./swipe";
 import { colorOf, money, signedMoney, uid, type Txn } from "../model";
 import { Icon } from "./icons";
 
@@ -14,6 +15,8 @@ export function MonthView({ store }: { store: Store }) {
   const { data, month, setMonth } = store;
   const [accountId, setAccountId] = useState<string>("");
   const [view, setView] = useState<View>("all");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; undo?: () => void; key: number } | null>(null);
   const acc = accountId || undefined;
   const all = monthItems(data, month);
   const items = acc ? all.filter(({ txn: t }) => t.accountId === acc || t.toAccountId === acc) : all;
@@ -61,6 +64,28 @@ export function MonthView({ store }: { store: Store }) {
     // mês previsto de um recorrente: confirmar = gravar o lançamento desse mês
     if (it.virtual) store.put([{ ...t, id: uid(), paid: true } as Txn]);
     else store.put([{ ...t, paid: !t.paid }]);
+  };
+
+  // Deslizar para a direita: pago/não pago (fatura: pagar). Compra no cartão e estimativa não têm "pago".
+  const payAction = (it: Item): SwipeAction | undefined => {
+    const t = it.txn;
+    if (it.estimate || (!it.bill && t.type !== "transfer" && data.cards.has(t.accountId))) return undefined;
+    if (it.bill) return { label: "Pagar fatura", tone: "pay", run: () => togglePaid(it) };
+    const verb = t.type === "income" ? "Recebido" : t.type === "transfer" ? "Realizada" : "Pago";
+    return t.paid ? { label: `Não ${verb.toLowerCase()}`, tone: "unpay", run: () => togglePaid(it) } : { label: verb, tone: "pay", run: () => togglePaid(it) };
+  };
+  // Deslizar para a esquerda: excluir (recorrente = pula só este mês; parcela = só esta parcela), com Desfazer.
+  const delAction = (it: Item): SwipeAction | undefined => {
+    if (it.estimate || it.bill) return undefined;
+    return {
+      label: "Excluir", tone: "del", run: async () => {
+        const t = it.txn;
+        const rec = it.virtual ? ({ ...t, id: uid() } as Txn) : t; // mês previsto: grava a marca "mês pulado"
+        await store.del([rec]);
+        const text = it.rule ? "Recorrente: este mês foi pulado" : it.plan ? `Parcela ${t.installment}/${it.plan.count} excluída` : "Lançamento excluído";
+        setToast({ text, key: Date.now(), undo: () => { const { deleted: _d, ...back } = rec; store.put([back as Txn]); } });
+      },
+    };
   };
 
   return (
@@ -152,12 +177,17 @@ export function MonthView({ store }: { store: Store }) {
               {list.length > 1 && net !== 0 && <span class="num">{signedMoney(net)}</span>}
             </div>
             <ul class="group">
-              {list.map((it) => <Row key={it.txn.id} store={store} it={it} accountId={acc} onToggle={() => togglePaid(it)} />)}
+              {list.map((it) => (
+                <SwipeRow key={it.txn.id} id={it.txn.id} openId={openId} setOpenId={setOpenId} left={payAction(it)} right={delAction(it)}>
+                  <Row store={store} it={it} accountId={acc} onToggle={() => togglePaid(it)} />
+                </SwipeRow>
+              ))}
             </ul>
           </section>
         );
       })}
-      {shown.length > 0 && <p class="hint-line">Toque no ícone para marcar como pago/recebido.</p>}
+      {shown.length > 0 && <p class="hint-line">Deslize para a direita para marcar como pago · para a esquerda para excluir.</p>}
+      <UndoToast toast={toast} onDone={() => setToast(null)} />
     </>
   );
 }
@@ -182,7 +212,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
   if (it.estimate) {
     const v = data.variable;
     return (
-      <li class="row estimate">
+      <div class="row estimate">
         <span class="avatar est" aria-hidden="true">≈</span>
         <div class="row-main static">
           <span class="what">
@@ -194,7 +224,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
             <span class="pill">estimativa</span>
           </span>
         </div>
-      </li>
+      </div>
     );
   }
   const open = () => {
@@ -204,7 +234,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
   };
 
   return (
-    <li class={`row ${t.paid ? "" : "pending"}`}>
+    <div class={`row ${t.paid ? "" : "pending"}`}>
       {onCard ? (
         <span class={`avatar oncard ${cat ? colorOf(cat) : t.type}`} title={`No cartão ${account?.name ?? ""}: entra na fatura`}>
           <span aria-hidden="true">{cat?.emoji ?? "•"}</span>
@@ -231,7 +261,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
             : !t.paid ? <span class="pill">pendente</span> : null}
         </span>
       </button>
-    </li>
+    </div>
   );
 }
 
