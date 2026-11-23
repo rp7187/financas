@@ -865,3 +865,18 @@ tr:last-child td { border-bottom: 0; }
 }
 html { zoom: var(--zoom); }
 :is(.sheet, .sim) :is(input:not([type="checkbox"]), select):not(.money-field input) { font-size: calc(16px / var(--zoom)); }
+
+/* Detalhe da categoria (Análises) */
+.rank-tap { cursor: pointer; border-radius: 12px; }
+.rank-tap:active { background: var(--surface-2); }
+.cat-title { display: inline-flex; align-items: center; gap: 10px; }
+.cat-title .avatar { width: 36px; height: 36px; font-size: 18px; margin: 0; cursor: default; }
+.cat-sum { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; background: var(--surface-2); border-radius: 14px; padding: 12px 14px; }
+.cat-sum span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.cat-sum b { font-size: 20px; font-weight: 750; }
+.cat-list { box-shadow: none; background: var(--surface-2); }
+.cat-list .row-main { background: transparent; }
+.cat-row { width: 100%; padding-left: 12px; min-height: 58px; }
+.cat-date { font-size: 13px; color: var(--muted); font-weight: 650; width: 40px; flex: none; }
+.group.cat-list > li + li .row-main { border-top: 1px solid var(--border); }
+.cat-list .pill { background: var(--surface); }

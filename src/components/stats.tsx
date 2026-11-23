@@ -8,6 +8,7 @@ import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName } from "./icons";
 import { Simulator } from "./simulator";
 import { PageHead } from "./page-head";
+import { CategoryDetail } from "./category-detail";
 
 /** Duração do período analisado, em meses. */
 const LENGTHS = [
@@ -48,6 +49,7 @@ export function Stats({ store }: { store: Store }) {
   const [table, setTable] = useState(false);
   const [natTable, setNatTable] = useState(false);
   const [purTable, setPurTable] = useState(false);
+  const [catSel, setCatSel] = useState<string | null>(null);
   const [period, setPeriodState] = useState<{ n: Len; start: string }>(remembered ?? { n: 1, start: store.month });
   const setPeriod = (p: { n: Len; start: string }) => { remembered = p; setPeriodState(p); };
   const acc = accountId || undefined;
@@ -219,7 +221,8 @@ export function Stats({ store }: { store: Store }) {
             const p = prev.get(c.categoryId) ?? 0;
             const col = colorOf({ id: c.categoryId, color: cat?.color });
             return (
-              <li key={c.categoryId}>
+              <li key={c.categoryId} class="rank-tap" role="button" tabIndex={0} aria-label={`Ver lançamentos de ${cat?.name ?? "Sem categoria"}`}
+                onClick={() => setCatSel(c.categoryId)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setCatSel(c.categoryId); } }}>
                 <span class={`avatar ${col}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>
                 <div class="rank-main">
                   <div class="rank-top"><span class="name">{cat?.name ?? "Sem categoria"}{isInvestment(cat) && <span class="inv-tag">invest.</span>}</span><b class="num">{money(c.amount)}</b></div>
@@ -365,6 +368,12 @@ export function Stats({ store }: { store: Store }) {
           </div>
         )}
       </section>
+
+      {catSel !== null && (
+        <CategoryDetail store={store} categoryId={catSel} period={label}
+          items={items.filter(({ txn: t, estimate }) => !estimate && t.type === flow && (t.categoryId ?? "") === catSel && (!acc || t.accountId === acc))}
+          onClose={() => setCatSel(null)} />
+      )}
 
       {/* ---------- Simulação ---------- */}
       <Simulator store={store} />
