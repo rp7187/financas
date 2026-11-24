@@ -23,6 +23,8 @@ export function MonthView({ store }: { store: Store }) {
   const tot = monthTotals(items, acc);
   const projected = balanceByMonth(data, month, month, acc)[0]?.balance ?? 0;
   const now = currentBalance(data, acc);
+  // faturas em aberto (compras já feitas no cartão que ainda vão sair da conta)
+  const cardDebt = acc ? 0 : -data.accounts.filter((a) => data.cards.has(a.id)).reduce((s, a) => s + currentBalance(data, a.id), 0) || 0;
   const isCurrent = month === thisMonth();
   const today = todayISO();
   const ratio = tot.income > 0 ? tot.expense / tot.income : tot.expense > 0 ? 1.01 : 0;
@@ -102,6 +104,7 @@ export function MonthView({ store }: { store: Store }) {
         <p class="hero-label">Saldo previsto no fim do mês</p>
         <div class="hero-amount num">{money(projected)}</div>
         {isCurrent && <div class="hero-sub">Saldo agora <b class="num">{money(now)}</b></div>}
+        {isCurrent && cardDebt > 0 && <div class="hero-sub">Faturas em aberto <b class="num">{money(cardDebt)}</b> · livre <b class="num">{money(now - cardDebt)}</b></div>}
         {tot.estimate > 0 && <div class="hero-sub">Inclui <b class="num">{money(tot.estimate)}</b> de gastos variáveis previstos</div>}
         <div class="hero-tiles">
           <button type="button" class={`tile wide ${view === "income" ? "active" : ""}`} aria-pressed={view === "income"} onClick={() => pick("income")}>
@@ -169,7 +172,8 @@ export function MonthView({ store }: { store: Store }) {
         </div>
       )}
       {[...groups.entries()].map(([date, list]) => {
-        const net = list.reduce((s, it) => s + effect(it.txn, acc, data), 0);
+        // soma do dia: compras no cartão contam (é o gasto do dia), mesmo sem mexer no saldo em conta
+        const net = list.reduce((s, it) => s + (acc || it.txn.type === "transfer" ? effect(it.txn, acc, data) : it.txn.type === "income" ? it.txn.amount : -it.txn.amount), 0);
         return (
           <section key={date}>
             <div class="day-head">

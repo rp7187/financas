@@ -36,7 +36,6 @@ export function Accounts({ store }: { store: Store }) {
   const total = currentBalance(data);
   const m = thisMonth();
   const projected = balanceByMonth(data, m, m)[0]?.balance ?? 0;
-  const inAccounts = accounts.reduce((s, a) => s + currentBalance(data, a.id), 0);
   const cardDebt = -cards.reduce((s, a) => s + currentBalance(data, a.id), 0) || 0; // "|| 0": evita "-R$ 0,00"
 
   return (
@@ -46,11 +45,11 @@ export function Accounts({ store }: { store: Store }) {
       </PageHead>
       {reorder && <ReorderSheet store={store} onClose={() => setReorder(false)} />}
       <section class="hero">
-        <p class="hero-label" style={{ marginTop: 0 }}>Disponível agora</p>
+        <p class="hero-label" style={{ marginTop: 0 }}>Saldo em contas</p>
         <div class="hero-amount num">{money(total)}</div>
         <div class="hero-sub">Previsto no fim do mês <b class="num">{money(projected)}</b></div>
-        {cards.length > 0 && <div class="hero-sub">Em contas <b class="num">{money(inAccounts)}</b> · devido nos cartões <b class="num">{money(cardDebt)}</b></div>}
-        {invs.length > 0 && <div class="hero-sub">Patrimônio <b class="num">{money(total + invested)}</b> (com {money(invested)} investidos)</div>}
+        {cardDebt > 0 && <div class="hero-sub">Faturas em aberto <b class="num">{money(cardDebt)}</b> · livre <b class="num">{money(total - cardDebt)}</b></div>}
+        {invs.length > 0 && <div class="hero-sub">Patrimônio <b class="num">{money(total - cardDebt + invested)}</b> (com {money(invested)} investidos)</div>}
       </section>
 
       <div class="section-head">
@@ -78,7 +77,7 @@ export function Accounts({ store }: { store: Store }) {
           <div class="acc-cards">{archived.map(swipe)}</div>
         </>
       )}
-      <p class="muted small" style={{ textAlign: "center" }}>Saldo = saldo inicial + o que já foi pago/recebido. Toque numa conta ou cartão para editar · deslize para a esquerda para excluir.</p>
+      <p class="muted small" style={{ textAlign: "center" }}>Saldo = saldo inicial + o que já foi pago/recebido. Compras no cartão saem do saldo quando a fatura é paga. Toque numa conta ou cartão para editar · deslize para a esquerda para excluir.</p>
       <UndoToast toast={toast} onDone={() => setToast(null)} />
     </>
   );

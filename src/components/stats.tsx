@@ -366,7 +366,7 @@ export function Stats({ store }: { store: Store }) {
                   <td class={r.income - r.expense < 0 ? "expense" : ""}>{reais(r.income - r.expense)}</td><td>{reais(r.balance)}</td></tr>
               ))}</tbody>
             </table>
-            <p class="muted small">° meses futuros (previsto: recorrentes, parcelas, pendentes e gastos variáveis estimados{data.variable.months ? ` — média de ${money(data.variable.avg)}/mês` : ""}).</p>
+            <p class="muted small">° meses futuros (previsto: recorrentes, parcelas, pendentes e gastos variáveis estimados{data.variable.months ? ` — média de ${money(data.variable.avg)}/mês` : ""}).{data.cards.size > 0 && " Despesas no cartão contam no mês da compra; no saldo, saem no vencimento da fatura."}</p>
           </div>
         )}
       </section>

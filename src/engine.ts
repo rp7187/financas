@@ -193,22 +193,23 @@ function firstCardMonth(d: Data, cardId: string): string | null {
 }
 
 /**
- * Efeito do lançamento no saldo de uma conta, ou no total DISPONÍVEL se `accountId` ausente.
- * Com `d`, o total exclui os investimentos: aplicar = sai do disponível; resgatar = entra.
+ * Efeito do lançamento no saldo de uma conta, ou no SALDO EM CONTAS (caixa) se `accountId` ausente.
+ * Com `d`, o total exclui investimentos e cartões: aplicar = sai; resgatar = entra;
+ * compra no cartão não mexe no saldo — o dinheiro sai no pagamento da fatura (transferência para o cartão).
  */
 export function effect(t: Txn, accountId?: string, d?: Data): number {
-  const inv = (id?: string) => !!id && !!d && d.investments.has(id);
+  const out = (id?: string) => !!id && !!d && (d.investments.has(id) || d.cards.has(id));
   if (t.type === "transfer") {
-    if (!accountId) return (inv(t.accountId) ? t.amount : 0) - (inv(t.toAccountId) ? t.amount : 0); // entre contas do dia a dia: 0
+    if (!accountId) return (out(t.accountId) ? t.amount : 0) - (out(t.toAccountId) ? t.amount : 0); // entre contas do dia a dia: 0
     return (t.toAccountId === accountId ? t.amount : 0) - (t.accountId === accountId ? t.amount : 0);
   }
-  if (accountId ? t.accountId !== accountId : inv(t.accountId)) return 0;
+  if (accountId ? t.accountId !== accountId : out(t.accountId)) return 0;
   return t.type === "income" ? t.amount : -t.amount;
 }
 
-/** Saldo inicial do disponível (sem investimentos) ou de uma conta. */
+/** Saldo inicial das contas (sem investimentos nem cartões) ou de uma conta. */
 const initialOf = (d: Data, accountId?: string) =>
-  d.accounts.filter((a) => (accountId ? a.id === accountId : !d.investments.has(a.id))).reduce((s, a) => s + a.initialBalance, 0);
+  d.accounts.filter((a) => (accountId ? a.id === accountId : !d.investments.has(a.id) && !d.cards.has(a.id))).reduce((s, a) => s + a.initialBalance, 0);
 
 export type Totals = {
   income: number; expense: number; incomePaid: number; expensePaid: number; pending: number; overdue: number;
@@ -275,10 +276,10 @@ export function balanceByMonth(d: Data, from: string, to: string, accountId?: st
   }
   // estimativa de variáveis dos meses entre o atual e `from` (só no total; não tem conta)
   if (!accountId) for (let m = thisMonth(); m < from; m = addMonths(m, 1)) running -= estimateFor(d, m).amount;
-  // faturas de cartão vencidas antes de `from` e não pagas (só mudam o saldo de uma conta, não o total)
-  if (accountId) {
+  // faturas de cartão vencidas antes de `from` e não pagas (ainda vão sair da conta de pagamento)
+  {
     for (const card of d.accounts) {
-      if (card.id !== accountId && card.payFromId !== accountId) continue;
+      if (accountId ? card.id !== accountId && card.payFromId !== accountId : !d.cards.has(card.id)) continue;
       const first = firstCardMonth(d, card.id);
       for (let m = first ?? from; m < from; m = addMonths(m, 1)) {
         const b = bill(d, card, m);
