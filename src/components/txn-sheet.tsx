@@ -39,6 +39,8 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const [count, setCount] = useState("2");
   const [endMonth, setEndMonth] = useState("");
   const [scope, setScope] = useState<"this" | "future">("this");
+  /** Parcela: editar só ela ou a compra inteira (todas as parcelas). */
+  const [planScope, setPlanScope] = useState<"this" | "all">("this");
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,6 +64,16 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
 
   const cats = data.categories.filter((c) => c.type === type && (!c.archived || c.id === categoryId));
   const n = Math.max(0, Math.floor(Number(count) || 0));
+  const plan = item?.plan;
+  const allPlan = !!plan && planScope === "all";
+  /** Troca entre editar só a parcela e a compra inteira: valor/data/nº de parcelas passam a ser os da compra. */
+  const choosePlanScope = (s: "this" | "all") => {
+    if (!plan || s === planScope) return;
+    setPlanScope(s); setError(null);
+    if (s === "all") { setAmount(plan.total); setDate(plan.firstDate); setCount(String(plan.count)); }
+    else { setAmount(t!.amount); setDate(t!.date); }
+  };
+  const splitting = (isNew && repeat === "installments") || allPlan;
   /** Lançamento único já gravado: pode virar mensal (o próprio lançamento vira o 1º mês confirmado). */
   const canMakeMonthly = !!item && !item.virtual && !item.rule && !item.plan && !item.bill && !item.txn.ruleId && !item.txn.planId && type !== "transfer";
 
@@ -72,7 +84,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
     if (type === "transfer") {
       if (!toAccountId || toAccountId === accountId) return "Escolha contas diferentes de origem e destino.";
     } else if (!categoryId) return "Escolha a categoria.";
-    if (isNew && repeat === "installments" && (n < 2 || n > 120)) return "Parcelas: de 2 a 120.";
+    if (splitting && (n < 2 || n > 120)) return "Parcelas: de 2 a 120.";
     if ((isNew || canMakeMonthly) && repeat === "monthly" && endMonth && endMonth < monthOf(date)) return "O fim da recorrência é antes do início.";
     return null;
   }
@@ -139,6 +151,28 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       return onClose();
     }
 
+    // Compra parcelada inteira: atualiza o parcelamento e refaz valores/datas de todas as parcelas
+    if (allPlan) {
+      const p = plan!;
+      const today = todayISO();
+      const wasCard = isCard(data.accounts.find((a) => a.id === p.accountId));
+      const existing = new Map(data.txns.filter((x) => x.planId === p.id && x.installment).map((x) => [x.installment!, x]));
+      const values = splitInstallments(amount, n);
+      const recs: (Plan | Txn)[] = [{ ...p, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, propertyId: b.propertyId }];
+      values.forEach((v, i) => {
+        const old = existing.get(i + 1);
+        const d = addMonthsToDate(date, i);
+        const paidNow = onCard || (old && !wasCard ? old.paid : d <= today);
+        // parcela excluída antes ("só esta parcela") continua excluída; só cria as que passaram do nº antigo
+        if (old) recs.push({ ...old, ...b, amount: v, date: d, paid: paidNow, installment: i + 1 } as Txn);
+        else if (i + 1 > p.count) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, amount: v, date: d, paid: paidNow, planId: p.id, installment: i + 1 } as Txn);
+      });
+      await store.put(recs);
+      const extra = [...existing.values()].filter((x) => x.installment! > n);
+      if (extra.length) await store.del(extra);
+      return onClose();
+    }
+
     // Despesa/receita única que passa a ser mensal: cria a recorrente e o lançamento vira o 1º mês (mesmo id)
     if (canMakeMonthly && repeat === "monthly") {
       const rule: Rule = {
@@ -177,7 +211,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   }
 
   const title = isNew ? "Novo lançamento"
-    : item!.plan ? `Parcela ${item!.txn.installment}/${item!.plan.count}`
+    : item!.plan ? (allPlan ? "Compra parcelada" : `Parcela ${item!.txn.installment}/${item!.plan.count}`)
     : item!.rule ? `Recorrente · ${monthLong(item!.txn.ruleMonth!)}`
     : `Editar ${TYPE_LABEL[type].toLowerCase()}`;
 
@@ -220,8 +254,8 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
           ))}
         </div>
       )}
-      <MoneyInput label={isNew && repeat === "installments" ? "Valor total" : "Valor"} value={amount} onChange={(v) => { setAmount(v); setError(null); }} autoFocus={isNew} />
-      {isNew && repeat === "installments" && n >= 2 && amount > 0 && (
+      <MoneyInput label={splitting ? "Valor total" : "Valor"} value={amount} onChange={(v) => { setAmount(v); setError(null); }} autoFocus={isNew} />
+      {splitting && n >= 2 && amount > 0 && (
         <p class="muted small hint">{n}× de {money(splitInstallments(amount, n)[0])}{amount % n ? ` (última ${money(splitInstallments(amount, n)[n - 1])})` : ""}</p>
       )}
       <label>Descrição<input type="text" value={description} placeholder={type === "transfer" ? "Transferência" : "opcional (usa a categoria)"} onInput={(e) => setDescription(e.currentTarget.value)} /></label>
@@ -259,7 +293,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
             </select>
           </label>
         ) : (
-          <label>{isNew && repeat !== "once" ? "Primeira data" : "Data"}<input type="date" value={date} onInput={(e) => setDate(e.currentTarget.value)} /></label>
+          <label>{(isNew && repeat !== "once") || allPlan ? "Primeira data" : "Data"}<input type="date" value={date} onInput={(e) => setDate(e.currentTarget.value)} /></label>
         )}
       </div>
       {type === "transfer" && <label>Data<input type="date" value={date} onInput={(e) => setDate(e.currentTarget.value)} /></label>}
@@ -276,7 +310,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       {onCard && cardBillMonth && (
         <p class="muted small hint">
           {type === "income" ? "Estorno/crédito: abate" : "Entra"} na fatura que vence {cardBill ? `${dayMonth(cardBill.due)}` : monthLong(cardBillMonth).toLowerCase()}
-          {isNew && repeat === "installments" ? " (1ª parcela; as demais nas faturas seguintes)" : ""}.
+          {splitting ? " (1ª parcela; as demais nas faturas seguintes)" : ""}.
         </p>
       )}
 
@@ -289,7 +323,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         </label>
       )}
 
-      {!onCard && (
+      {!onCard && !allPlan && (
         <label class="toggle">
           <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.currentTarget.checked)} />
           <span>{type === "income" ? "Recebido" : type === "transfer" ? "Realizada" : "Pago"}{isNew && repeat !== "once" ? " (1ª ocorrência)" : ""}</span>
@@ -323,7 +357,19 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
           </div>
         </div>
       )}
-      {item?.plan && <p class="muted small">Parcelamento: {money(item.plan.total)} em {item.plan.count}× · alterar aqui muda só esta parcela.</p>}
+      {plan && (
+        <div class="field">
+          <span class="label">Aplicar alteração em</span>
+          <div class="seg wide" role="group" aria-label="Escopo">
+            <button type="button" class={planScope === "this" ? "on" : ""} aria-pressed={planScope === "this"} onClick={() => choosePlanScope("this")}>Só esta parcela</button>
+            <button type="button" class={planScope === "all" ? "on" : ""} aria-pressed={planScope === "all"} onClick={() => choosePlanScope("all")}>Compra inteira</button>
+          </div>
+          {allPlan && <label>Número de parcelas<input type="number" inputMode="numeric" min="2" max="120" value={count} onInput={(e) => { setCount(e.currentTarget.value); setError(null); }} /></label>}
+          <p class="muted small hint">{allPlan
+            ? "Valor total, descrição, categoria, conta e datas valem para todas as parcelas (as já pagas continuam pagas)."
+            : `Parcelamento: ${money(plan.total)} em ${plan.count}× · muda só a parcela ${t!.installment}.`}</p>
+        </div>
+      )}
       {error && <p class="error" role="alert">{error}</p>}
     </Sheet>
   );
