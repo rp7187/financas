@@ -50,6 +50,7 @@ export function Stats({ store }: { store: Store }) {
   const [natTable, setNatTable] = useState(false);
   const [purTable, setPurTable] = useState(false);
   const [catSel, setCatSel] = useState<string | null>(null);
+  const [propSel, setPropSel] = useState<string | null>(null);
   const [period, setPeriodState] = useState<{ n: Len; start: string }>(remembered ?? { n: 1, start: store.month });
   const setPeriod = (p: { n: Len; start: string }) => { remembered = p; setPeriodState(p); };
   const acc = accountId || undefined;
@@ -329,7 +330,8 @@ export function Stats({ store }: { store: Store }) {
           <CardHead icon="home" tone="brand" title="Custos por imóvel" sub="Total no período · média desde o 1º custo" />
           <ul class="rank">
             {propRows.map(({ p, total, first, count }) => (
-              <li key={p.id}>
+              <li key={p.id} class="rank-tap" role="button" tabIndex={0} aria-label={`Ver despesas de ${p.name}`}
+                onClick={() => setPropSel(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPropSel(p.id); } }}>
                 <span class={`avatar ${colorOf(p)}`} aria-hidden="true">{PROPERTY_KIND[p.kind].emoji}</span>
                 <div class="rank-main">
                   <div class="rank-top"><span class="name">{p.name}</span><b class="num">{money(total)}</b></div>
@@ -373,6 +375,12 @@ export function Stats({ store }: { store: Store }) {
         <CategoryDetail store={store} categoryId={catSel} period={label}
           items={items.filter(({ txn: t, estimate }) => !estimate && t.type === flow && (t.categoryId ?? "") === catSel && (!acc || t.accountId === acc))}
           onClose={() => setCatSel(null)} />
+      )}
+
+      {propSel !== null && (
+        <CategoryDetail store={store} propertyId={propSel} period={label}
+          items={items.filter(({ txn: t, estimate }) => !estimate && t.type === "expense" && t.propertyId === propSel && (!acc || t.accountId === acc))}
+          onClose={() => setPropSel(null)} />
       )}
 
       {/* ---------- Simulação ---------- */}

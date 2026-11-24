@@ -1,18 +1,19 @@
 import type { Store } from "../app";
 import { dayMonth, monthLong } from "../dates";
 import type { Item } from "../engine";
-import { colorOf, money } from "../model";
+import { PROPERTY_KIND, colorOf, money } from "../model";
 import { Sheet } from "./sheet";
 
 /**
  * Detalhe de uma categoria nas Análises: os lançamentos que formam o total (mesmo período e conta da tela).
  * Inclui recorrentes previstos (entram no total). Tocar num lançamento abre a edição.
  */
-export function CategoryDetail({ store, categoryId, items, period, onClose }: {
-  store: Store; categoryId: string; items: Item[]; period: string; onClose: () => void;
+export function CategoryDetail({ store, categoryId, propertyId, items, period, onClose }: {
+  store: Store; categoryId?: string; propertyId?: string; items: Item[]; period: string; onClose: () => void;
 }) {
   const { data } = store;
-  const cat = data.categories.find((c) => c.id === categoryId);
+  const cat = categoryId !== undefined ? data.categories.find((c) => c.id === categoryId) : undefined;
+  const prop = propertyId ? data.properties.find((p) => p.id === propertyId) : undefined;
   const list = [...items].sort((a, b) => b.txn.date.localeCompare(a.txn.date) || b.txn.amount - a.txn.amount);
   const total = list.reduce((s, it) => s + it.txn.amount, 0);
   const months = new Map<string, Item[]>();
@@ -21,7 +22,9 @@ export function CategoryDetail({ store, categoryId, items, period, onClose }: {
   const sign = cat?.type === "income" ? "+" : "−";
 
   return (
-    <Sheet title={<span class="cat-title"><span class={`avatar ${colorOf({ id: categoryId, color: cat?.color })}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>{cat?.name ?? "Sem categoria"}</span>}
+    <Sheet title={prop
+        ? <span class="cat-title"><span class={`avatar ${colorOf(prop)}`} aria-hidden="true">{PROPERTY_KIND[prop.kind].emoji}</span>{prop.name}</span>
+        : <span class="cat-title"><span class={`avatar ${colorOf({ id: categoryId ?? "", color: cat?.color })}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>{cat?.name ?? "Sem categoria"}</span>}
       onClose={onClose} onSubmit={(e) => { e.preventDefault(); onClose(); }}
       actions={<button type="submit" class="btn primary">Fechar</button>}>
       <div class="cat-sum">
@@ -37,7 +40,8 @@ export function CategoryDetail({ store, categoryId, items, period, onClose }: {
             {its.map((it) => {
               const t = it.txn;
               const acc = data.accounts.find((a) => a.id === t.accountId);
-              const extra = it.plan ? ` · ${t.installment}/${it.plan.count}` : it.rule ? " · mensal" : "";
+              const c = prop ? data.categories.find((x) => x.id === t.categoryId) : undefined;
+              const extra = (c ? ` · ${c.emoji} ${c.name}` : "") + (it.plan ? ` · ${t.installment}/${it.plan.count}` : it.rule ? " · mensal" : "");
               return (
                 <li key={t.id}>
                   <button type="button" class="row-main cat-row" onClick={() => { onClose(); store.openTxn(it); }}>
