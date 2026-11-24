@@ -25,6 +25,8 @@ const CATS: [string, string, Flow, string][] = [
   ["outros-d", "Outros", "expense", "📦"],
   ["moveis", "Móveis e eletros", "expense", "🛋️"], // versão 7 (no fim das despesas: não muda a cor automática das outras)
   ["bebidas", "Bebidas", "expense", "🍷"], // versão 8
+  ["pelucia", "Máquinas de bicho de pelúcia", "expense", "🧸"], // versão 9
+  ["apostas", "Apostas", "expense", "🎲"], // versão 9
   ["salario", "Salário", "income", "💼"],
   ["13-ferias", "13º e férias", "income", "🏖️"],
   ["extra", "Extra/freelance", "income", "✨"],
@@ -45,12 +47,13 @@ CATS.filter((c) => c[2] === "income").forEach((c, i) => { DEFAULT_COLOR_ORDER[in
  * Versão dos dados iniciais. Ao acrescentar um padrão novo, suba o número: aparelhos que já usam o app
  * recebem só o que falta (por id — um padrão excluído pelo usuário tem marca de exclusão e não volta).
  */
-export const DEFAULTS_VERSION = 8; // 3: categoria do usuário com mesmo nome de um padrão é substituída pelo padrão
+export const DEFAULTS_VERSION = 9; // 3: categoria do usuário com mesmo nome de um padrão é substituída pelo padrão
 // 4: "Farmácia" unificada em "Saúde e farmácia"; "Lazer" → "Lazer e hobbies" (ver MERGES/RENAMES)
 // 5: "Transporte e combustível" → "Veículos, combustível e transporte"
 // 6: Investimentos e Educação classificadas como investimento (ver PURPOSES)
 // 7: nova categoria padrão "Móveis e eletros"
 // 8: nova categoria padrão "Bebidas"
+// 9: novas categorias padrão "Máquinas de bicho de pelúcia" e "Apostas"
 
 /** Classificação custo/investimento de padrões: só aplica se o usuário ainda não classificou. */
 export const PURPOSES: { since: number; id: string; purpose: "cost" | "investment" }[] = [
