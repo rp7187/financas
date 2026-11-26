@@ -112,6 +112,7 @@ export type Txn = Base & {
   ruleId?: string; // mês de um recorrente
   ruleMonth?: string; // "AAAA-MM" do recorrente (um registro excluído aqui = "pular este mês")
   propertyId?: string; // imóvel associado (opcional)
+  vehicleId?: string; // veículo associado (opcional)
   billFor?: string; // pagamento de fatura: "AAAA-MM" do vencimento da fatura paga (transferência para o cartão)
 };
 
@@ -127,6 +128,7 @@ export type Rule = Base & {
   startMonth: string;
   endMonth?: string; // inclusive; ausente = sem fim
   propertyId?: string;
+  vehicleId?: string;
 };
 
 /** Parcelamento: total dividido em `count` parcelas mensais (cada parcela é um Txn com planId). */
@@ -140,9 +142,30 @@ export type Plan = Base & {
   accountId: string;
   firstDate: string;
   propertyId?: string;
+  vehicleId?: string;
 };
 
-export type Rec = Account | Category | Txn | Rule | Plan | Property | Valuation;
+/** Veículo: para associar custos (opcional nas despesas), como os imóveis. */
+export type VehicleKind = "car" | "moto" | "pickup" | "boat" | "other";
+export type Vehicle = Base & {
+  t: "vehicle";
+  name: string;
+  kind: VehicleKind;
+  plate?: string;
+  note?: string;
+  archived?: boolean;
+  color?: string; // "c1".."c8"; ausente = automática
+};
+
+export const VEHICLE_KIND: Record<VehicleKind, { label: string; emoji: string }> = {
+  car: { label: "Carro", emoji: "🚗" },
+  moto: { label: "Moto", emoji: "🏍️" },
+  pickup: { label: "Caminhonete", emoji: "🛻" },
+  boat: { label: "Barco/jet", emoji: "🚤" },
+  other: { label: "Outro", emoji: "🚙" },
+};
+
+export type Rec = Account | Category | Txn | Rule | Plan | Property | Vehicle | Valuation;
 
 export const PROPERTY_KIND: Record<PropertyKind, { label: string; emoji: string }> = {
   apartment: { label: "Apartamento", emoji: "🏢" },
@@ -214,5 +237,5 @@ export function isRec(x: unknown): x is Rec {
   if (!x || typeof x !== "object") return false;
   const r = x as Record<string, unknown>;
   return typeof r.id === "string" && typeof r.updatedAt === "number" &&
-    ["account", "category", "txn", "rule", "plan", "property", "valuation"].includes(r.t as string);
+    ["account", "category", "txn", "rule", "plan", "property", "vehicle", "valuation"].includes(r.t as string);
 }

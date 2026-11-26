@@ -2,8 +2,8 @@ import { useEffect, useState } from "preact/hooks";
 import type { Store } from "../app";
 import { addMonths, thisMonth } from "../dates";
 import { requestPersist } from "../db";
-import { byProperty, monthItems } from "../engine";
-import { PROPERTY_KIND, colorOf, isInvestment, isRec, money, type Flow } from "../model";
+import { byProperty, byVehicle, monthItems } from "../engine";
+import { PROPERTY_KIND, VEHICLE_KIND, colorOf, isInvestment, isRec, money, type Flow } from "../model";
 import { Icon } from "./icons";
 import { FamilySync } from "./family-sync";
 import { getTheme, setTheme, type Theme } from "../theme";
@@ -20,11 +20,14 @@ export function Settings({ store }: { store: Store }) {
   const { data } = store;
   const cats = data.categories.filter((c) => c.type === flow);
   const props = data.properties.filter((p) => showArchived || !p.archived);
+  const vehicles = data.vehicles.filter((v) => showArchived || !v.archived);
   // custo de cada imóvel nos últimos 12 meses (inclui previstos)
   const cur = thisMonth();
   const year = new Map<string, number>();
   for (let i = 0; i < 12; i++) {
-    for (const [id, v] of byProperty(monthItems(data, addMonths(cur, -i)))) year.set(id, (year.get(id) ?? 0) + v);
+    const its = monthItems(data, addMonths(cur, -i));
+    for (const [id, v] of byProperty(its)) year.set(id, (year.get(id) ?? 0) + v);
+    for (const [id, v] of byVehicle(its)) year.set(id, (year.get(id) ?? 0) + v);
   }
 
   async function exportBackup() {
@@ -85,6 +88,29 @@ export function Settings({ store }: { store: Store }) {
       <p class="muted small" style={{ margin: "-6px 6px 0" }}>
         Valor ao lado = custos dos últimos 12 meses. Ao lançar uma despesa, escolha o imóvel (opcional).
         {data.properties.some((p) => p.archived) && <> <button type="button" class="link" onClick={() => setShowArchived(!showArchived)}>{showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}</button></>}
+      </p>
+
+      <p class="section-label">Veículos</p>
+      <ul class="ios-list">
+        {vehicles.map((v) => (
+          <li key={v.id}>
+            <button type="button" class="ios-row" onClick={() => store.openVehicle(v)}>
+              <span class={`ic avatar ${colorOf(v)}`} style={{ cursor: "inherit", margin: 0 }}>{VEHICLE_KIND[v.kind].emoji}</span>
+              <span class="grow"><span>{v.name}{v.archived ? " (arquivado)" : ""}</span><small>{[VEHICLE_KIND[v.kind].label, v.plate, v.note].filter(Boolean).join(" · ")}</small></span>
+              <span class="val num">{money(year.get(v.id) ?? 0)}</span>
+              <Icon name="chevR" class="chev" />
+            </button>
+          </li>
+        ))}
+        <li>
+          <button type="button" class="ios-row add" onClick={() => store.openVehicle(null)}>
+            <span class="ic"><Icon name="plus" /></span><span class="grow">Adicionar veículo</span>
+          </button>
+        </li>
+      </ul>
+      <p class="muted small" style={{ margin: "-6px 6px 0" }}>
+        Valor ao lado = custos dos últimos 12 meses. Ao lançar uma despesa, escolha o veículo (opcional).
+        {data.vehicles.some((v) => v.archived) && <> <button type="button" class="link" onClick={() => setShowArchived(!showArchived)}>{showArchived ? "Ocultar arquivados" : "Mostrar arquivados"}</button></>}
       </p>
 
       <p class="section-label">Categorias</p>

@@ -32,6 +32,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const [categoryId, setCategoryId] = useState(t?.categoryId ?? "");
   const [accountId, setAccountId] = useState(t?.accountId ?? defaultAccount);
   const [propertyId, setPropertyId] = useState(t?.propertyId ?? "");
+  const [vehicleId, setVehicleId] = useState(t?.vehicleId ?? "");
   const [toAccountId, setToAccountId] = useState(t?.toAccountId ?? draft?.toAccountId ?? accounts.find((a) => a.id !== defaultAccount && !isCard(a))?.id ?? "");
   const [date, setDate] = useState(t?.date ?? draft?.date ?? defaultDate);
   const [paid, setPaid] = useState(t ? t.paid : defaultDate <= todayISO());
@@ -96,6 +97,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
     accountId,
     ...(type === "transfer" ? { toAccountId, categoryId: undefined } : { categoryId, toAccountId: undefined }),
     propertyId: type === "expense" && propertyId ? propertyId : undefined,
+    vehicleId: type === "expense" && vehicleId ? vehicleId : undefined,
   });
 
   async function submit(e: Event) {
@@ -111,14 +113,14 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         const rule: Rule = {
           id: uid(), t: "rule", updatedAt: 0, type: type as Flow, amount, description: b.description, categoryId, accountId,
           day: Number(date.slice(8, 10)), startMonth: monthOf(date), ...(endMonth ? { endMonth } : {}),
-          ...(b.propertyId ? { propertyId: b.propertyId } : {}),
+          ...(b.propertyId ? { propertyId: b.propertyId } : {}), ...(b.vehicleId ? { vehicleId: b.vehicleId } : {}),
         };
         const recs: (Rule | Txn)[] = [rule];
         // 1º mês já pago/recebido: grava o lançamento confirmado desse mês.
         if (paid && !onCard) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn);
         await store.put(recs);
       } else {
-        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(b.propertyId ? { propertyId: b.propertyId } : {}) };
+        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(b.propertyId ? { propertyId: b.propertyId } : {}), ...(b.vehicleId ? { vehicleId: b.vehicleId } : {}) };
         const today = todayISO();
         const parts = splitInstallments(amount, n).map((v, i): Txn => {
           const d = addMonthsToDate(date, i);
@@ -135,7 +137,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       const m = item!.txn.ruleMonth!;
       const next: Omit<Rule, "id" | "startMonth" | "endMonth" | "updatedAt" | "t"> = {
         type: type as Flow, amount, description: b.description, categoryId, accountId, day: Number(date.slice(8, 10)),
-        propertyId: b.propertyId,
+        propertyId: b.propertyId, vehicleId: b.vehicleId,
       };
       const recs: (Rule | Txn)[] = [];
       if (m === r.startMonth) {
@@ -158,7 +160,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       const wasCard = isCard(data.accounts.find((a) => a.id === p.accountId));
       const existing = new Map(data.txns.filter((x) => x.planId === p.id && x.installment).map((x) => [x.installment!, x]));
       const values = splitInstallments(amount, n);
-      const recs: (Plan | Txn)[] = [{ ...p, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, propertyId: b.propertyId }];
+      const recs: (Plan | Txn)[] = [{ ...p, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, propertyId: b.propertyId, vehicleId: b.vehicleId }];
       values.forEach((v, i) => {
         const old = existing.get(i + 1);
         const d = addMonthsToDate(date, i);
@@ -178,7 +180,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       const rule: Rule = {
         id: uid(), t: "rule", updatedAt: 0, type: type as Flow, amount, description: b.description, categoryId, accountId,
         day: Number(date.slice(8, 10)), startMonth: monthOf(date), ...(endMonth ? { endMonth } : {}),
-        ...(b.propertyId ? { propertyId: b.propertyId } : {}),
+        ...(b.propertyId ? { propertyId: b.propertyId } : {}), ...(b.vehicleId ? { vehicleId: b.vehicleId } : {}),
       };
       await store.put([rule, { ...item!.txn, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn]);
       return onClose();
@@ -319,6 +321,14 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
           <select value={propertyId} onChange={(e) => setPropertyId(e.currentTarget.value)}>
             <option value="">Nenhum</option>
             {data.properties.filter((p) => !p.archived || p.id === propertyId).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </label>
+      )}
+      {type === "expense" && data.vehicles.some((v) => !v.archived || v.id === vehicleId) && (
+        <label>Veículo (opcional)
+          <select value={vehicleId} onChange={(e) => setVehicleId(e.currentTarget.value)}>
+            <option value="">Nenhum</option>
+            {data.vehicles.filter((v) => !v.archived || v.id === vehicleId).map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
         </label>
       )}

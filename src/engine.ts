@@ -1,5 +1,5 @@
 import { addMonths, dateInMonth, daysInMonth, monthDiff, monthOf, thisMonth, todayISO } from "./dates";
-import { isCard, isInvestAccount, type Account, type Category, type Plan, type Property, type Rec, type Rule, type Txn, type Valuation } from "./model";
+import { isCard, isInvestAccount, type Account, type Category, type Plan, type Property, type Rec, type Vehicle, type Rule, type Txn, type Valuation } from "./model";
 
 /** Registros vivos (sem os excluídos), separados por tipo. */
 export type Data = {
@@ -9,6 +9,7 @@ export type Data = {
   rules: Rule[];
   plans: Plan[];
   properties: Property[];
+  vehicles: Vehicle[];
   /** `${ruleId}|${mês}` já materializado (inclusive excluído = mês pulado). */
   ruleDone: Set<string>;
   /** Ids das contas que são cartão de crédito. */
@@ -22,7 +23,7 @@ export type Data = {
 };
 
 export function indexData(records: Rec[]): Data {
-  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], properties: [], ruleDone: new Set(), cards: new Set(), investments: new Set(), valuations: [], variable: { avg: 0, months: 0 } };
+  const d: Data = { accounts: [], categories: [], txns: [], rules: [], plans: [], properties: [], vehicles: [], ruleDone: new Set(), cards: new Set(), investments: new Set(), valuations: [], variable: { avg: 0, months: 0 } };
   for (const r of records) {
     if (r.t === "txn" && r.ruleId && r.ruleMonth) d.ruleDone.add(`${r.ruleId}|${r.ruleMonth}`);
     if (r.deleted) continue;
@@ -32,6 +33,7 @@ export function indexData(records: Rec[]): Data {
     else if (r.t === "rule") d.rules.push(r);
     else if (r.t === "plan") d.plans.push(r);
     else if (r.t === "property") d.properties.push(r);
+    else if (r.t === "vehicle") d.vehicles.push(r);
     else if (r.t === "valuation") d.valuations.push(r);
   }
   d.valuations.sort((a, b) => a.date.localeCompare(b.date) || a.month.localeCompare(b.month));
@@ -40,6 +42,7 @@ export function indexData(records: Rec[]): Data {
   d.variable = variableAverage(d);
   d.categories.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   d.properties.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  d.vehicles.sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
   return d;
 }
 
@@ -97,6 +100,7 @@ export function virtualTxn(r: Rule, month: string, onCard = false): Txn {
     id: `v:${r.id}:${month}`, t: "txn", updatedAt: 0, type: r.type, amount: r.amount, date: dateInMonth(month, r.day),
     description: r.description, categoryId: r.categoryId, accountId: r.accountId, paid: onCard, ruleId: r.id, ruleMonth: month,
     ...(r.propertyId ? { propertyId: r.propertyId } : {}),
+    ...(r.vehicleId ? { vehicleId: r.vehicleId } : {}),
   };
 }
 
@@ -311,6 +315,16 @@ export function expenseByNature(items: Item[], accountId?: string): Record<Natur
 }
 
 /** Despesas por imóvel nos itens dados (só lançamentos associados a imóvel). */
+/** Custo por veículo (despesas com veículo associado). */
+export function byVehicle(items: Item[]) {
+  const map = new Map<string, number>();
+  for (const { txn: t } of items) {
+    if (t.type !== "expense" || !t.vehicleId) continue;
+    map.set(t.vehicleId, (map.get(t.vehicleId) ?? 0) + t.amount);
+  }
+  return map;
+}
+
 export function byProperty(items: Item[]) {
   const map = new Map<string, number>();
   for (const { txn: t } of items) {

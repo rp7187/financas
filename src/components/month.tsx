@@ -203,6 +203,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
   const account = data.accounts.find((a) => a.id === t.accountId);
   const to = data.accounts.find((a) => a.id === t.toAccountId);
   const prop = t.propertyId ? data.properties.find((p) => p.id === t.propertyId) : undefined;
+  const veh = t.vehicleId ? data.vehicles.find((v) => v.id === t.vehicleId) : undefined;
   const today = todayISO();
   const late = !t.paid && t.date < today;
   const b = it.bill;
@@ -261,6 +262,7 @@ function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accou
           {late ? <span class="pill late">{b ? "vencida" : "vencido"}</span>
             : b ? <span class="pill card">a pagar</span>
             : prop ? <span class="pill prop">{prop.name}</span>
+            : veh ? <span class="pill prop">{veh.name}</span>
             : it.virtual ? <span class="pill">previsto</span>
             : !t.paid ? <span class="pill">pendente</span> : null}
         </span>

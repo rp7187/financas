@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import * as db from "./db";
 import { DEFAULTS_VERSION, MERGES, PURPOSES, RENAMES, defaultRecords } from "./defaults";
 import { indexData, type Data, type Item } from "./engine";
-import type { Category, Property, Rec } from "./model";
+import type { Category, Property, Rec, Vehicle } from "./model";
 import { thisMonth } from "./dates";
 import { MonthView } from "./components/month";
 import { Accounts } from "./components/accounts";
@@ -12,6 +12,7 @@ import { TxnSheet, type TxnDraft } from "./components/txn-sheet";
 import { AccountSheet, type AccountTarget } from "./components/account-sheet";
 import { CategorySheet } from "./components/category-sheet";
 import { PropertySheet } from "./components/property-sheet";
+import { VehicleSheet } from "./components/vehicle-sheet";
 import { Icon, type IconName } from "./components/icons";
 import { Investments, ValuationSheet } from "./components/investments";
 import * as sync from "./sync";
@@ -34,6 +35,7 @@ export type Store = {
   openAccount: (a: AccountTarget) => void;
   openCategory: (c: Category | { type: Category["type"] }) => void;
   openProperty: (p: Property | null) => void;
+  openVehicle: (v: Vehicle | null) => void;
   /** Troca de tela (ex.: engrenagem → Ajustes; voltar de Ajustes). */
   go: (tab: Tab) => void;
   /** Tela de onde se abriu Ajustes (para o "voltar"). */
@@ -137,6 +139,7 @@ export function App() {
   const [accountSheet, setAccountSheet] = useState<AccountTarget | undefined>(undefined);
   const [categorySheet, setCategorySheet] = useState<Category | { type: Category["type"] } | null>(null);
   const [propertySheet, setPropertySheet] = useState<Property | null | undefined>(undefined);
+  const [vehicleSheet, setVehicleSheet] = useState<Vehicle | null | undefined>(undefined);
   const [syncState, setSyncState] = useState<sync.SyncState>(sync.getState());
 
   useEffect(() => {
@@ -211,6 +214,7 @@ export function App() {
     openAccount: setAccountSheet,
     openCategory: setCategorySheet,
     openProperty: setPropertySheet,
+    openVehicle: setVehicleSheet,
     go: (t) => { if (t === "settings") setFrom(tab); setTab(t); window.scrollTo(0, 0); },
     from,
     openValuations: () => setValuations(true),
@@ -235,6 +239,7 @@ export function App() {
       {categorySheet && <CategorySheet store={store} target={categorySheet} onClose={() => setCategorySheet(null)} />}
       {valuations && <ValuationSheet store={store} onClose={() => setValuations(false)} />}
       {propertySheet !== undefined && <PropertySheet store={store} property={propertySheet} onClose={() => setPropertySheet(undefined)} />}
+      {vehicleSheet !== undefined && <VehicleSheet store={store} vehicle={vehicleSheet} onClose={() => setVehicleSheet(undefined)} />}
     </>
   );
 }

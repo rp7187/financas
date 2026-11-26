@@ -1,19 +1,22 @@
 import type { Store } from "../app";
 import { dayMonth, monthLong } from "../dates";
 import type { Item } from "../engine";
-import { PROPERTY_KIND, colorOf, money } from "../model";
+import { PROPERTY_KIND, VEHICLE_KIND, colorOf, money } from "../model";
 import { Sheet } from "./sheet";
 
 /**
  * Detalhe de uma categoria nas Análises: os lançamentos que formam o total (mesmo período e conta da tela).
  * Inclui recorrentes previstos (entram no total). Tocar num lançamento abre a edição.
  */
-export function CategoryDetail({ store, categoryId, propertyId, items, period, onClose }: {
-  store: Store; categoryId?: string; propertyId?: string; items: Item[]; period: string; onClose: () => void;
+export function CategoryDetail({ store, categoryId, propertyId, vehicleId, items, period, onClose }: {
+  store: Store; categoryId?: string; propertyId?: string; vehicleId?: string; items: Item[]; period: string; onClose: () => void;
 }) {
   const { data } = store;
   const cat = categoryId !== undefined ? data.categories.find((c) => c.id === categoryId) : undefined;
-  const prop = propertyId ? data.properties.find((p) => p.id === propertyId) : undefined;
+  const property = propertyId ? data.properties.find((p) => p.id === propertyId) : undefined;
+  const vehicle = vehicleId ? data.vehicles.find((v) => v.id === vehicleId) : undefined;
+  // imóvel/veículo: cabeçalho com o emoji do tipo e a categoria de cada despesa na linha
+  const prop = property ? { ...property, emoji: PROPERTY_KIND[property.kind].emoji } : vehicle ? { ...vehicle, emoji: VEHICLE_KIND[vehicle.kind].emoji } : undefined;
   const list = [...items].sort((a, b) => b.txn.date.localeCompare(a.txn.date) || b.txn.amount - a.txn.amount);
   const total = list.reduce((s, it) => s + it.txn.amount, 0);
   const months = new Map<string, Item[]>();
@@ -23,7 +26,7 @@ export function CategoryDetail({ store, categoryId, propertyId, items, period, o
 
   return (
     <Sheet title={prop
-        ? <span class="cat-title"><span class={`avatar ${colorOf(prop)}`} aria-hidden="true">{PROPERTY_KIND[prop.kind].emoji}</span>{prop.name}</span>
+        ? <span class="cat-title"><span class={`avatar ${colorOf(prop)}`} aria-hidden="true">{prop.emoji}</span>{prop.name}</span>
         : <span class="cat-title"><span class={`avatar ${colorOf({ id: categoryId ?? "", color: cat?.color })}`} aria-hidden="true">{cat?.emoji ?? "•"}</span>{cat?.name ?? "Sem categoria"}</span>}
       onClose={onClose} onSubmit={(e) => { e.preventDefault(); onClose(); }}
       actions={<button type="submit" class="btn primary">Fechar</button>}>

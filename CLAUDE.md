@@ -25,6 +25,9 @@ Nenhuma versão nova pode perder ou tornar ilegível o que já foi gravado.
 - `plan` (parcelado) grava uma `txn` por parcela (`planId`, `installment`).
 - Transferência = `txn` com `type: "transfer"`, `accountId` → `toAccountId`; não entra em receitas/despesas.
 - Cartão de crédito = conta `kind: "credit"`; fatura calculada por ciclo (`engine.ts`), paga por transferência com `billFor`.
+  Saldo em caixa: compra no cartão conta como despesa no mês da compra, mas só sai do saldo das contas no pagamento da fatura.
+- Imóvel (`property`) e veículo (`vehicle`): cadastros para somar custos; despesa/recorrente/parcelado
+  guardam `propertyId` / `vehicleId` (opcionais). Versões antigas ignoram `t: "vehicle"` (o `isRec` filtra).
 - Investimento = conta `kind: "investment"` ou `"savings"`: fica fora do "disponível" (saldo total, previsto,
   simulação); aporte/resgate = transferência. Saldo vem do `valuation` (um por conta por mês, id fixo
   `val:<conta>:<mês>`) + movimentos depois dele; rendimento = saldo − saldo anterior − aportes líquidos.

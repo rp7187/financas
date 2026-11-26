@@ -2,8 +2,8 @@ import { useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import type { Store } from "../app";
 import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates";
-import { balanceByMonth, byCategory, byProperty, byPurpose, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
-import { PROPERTY_KIND, colorOf, isInvestment, money, moneyCompact, reais, signedMoney } from "../model";
+import { balanceByMonth, byCategory, byProperty, byPurpose, byVehicle, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
+import { PROPERTY_KIND, VEHICLE_KIND, colorOf, isInvestment, money, moneyCompact, reais, signedMoney } from "../model";
 import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
 import { Icon, type IconName, AccountBadge } from "./icons";
 import { Simulator } from "./simulator";
@@ -107,22 +107,26 @@ export function Stats({ store }: { store: Store }) {
   const [balStart, ...balRest] = balanceByMonth(data, addMonths(start, -1), end, acc);
   const balEnd = balRest[balRest.length - 1] ?? balStart;
 
-  // Imóveis: total no período; média só sobre os meses desde o 1º custo dentro do período
-  const propTotal = new Map<string, number>();
-  const propFirst = new Map<string, string>();
-  for (const m of months) {
-    for (const [id, v] of byProperty(filterAcc(monthItems(data, m)))) {
-      propTotal.set(id, (propTotal.get(id) ?? 0) + v);
-      if (!propFirst.has(id)) propFirst.set(id, m);
+  // Imóveis e veículos: total no período; média só sobre os meses desde o 1º custo dentro do período
+  const costRows = (list: AssetLike[], by: (its: Item[]) => Map<string, number>, kinds: Record<string, { label: string; emoji: string }>): CostRow[] => {
+    const total = new Map<string, number>();
+    const firstM = new Map<string, string>();
+    for (const m of months) {
+      for (const [id, v] of by(filterAcc(monthItems(data, m)))) {
+        total.set(id, (total.get(id) ?? 0) + v);
+        if (!firstM.has(id)) firstM.set(id, m);
+      }
     }
-  }
-  const propRows = data.properties.filter((p) => propTotal.has(p.id) || !p.archived)
-    .map((p) => {
-      const first = propFirst.get(p.id);
-      return { p, total: propTotal.get(p.id) ?? 0, first, count: first ? monthDiff(first, end) + 1 : 0 };
-    })
-    .sort((a, b) => b.total - a.total);
-  const propMax = Math.max(1, ...propRows.map((r) => r.total));
+    return list.filter((p) => total.has(p.id) || !p.archived)
+      .map((p) => {
+        const first = firstM.get(p.id);
+        return { p, emoji: kinds[p.kind].emoji, kindLabel: kinds[p.kind].label, total: total.get(p.id) ?? 0, first, count: first ? monthDiff(first, end) + 1 : 0 };
+      })
+      .sort((a, b) => b.total - a.total);
+  };
+  const propRows = costRows(data.properties, byProperty, PROPERTY_KIND);
+  const vehRows = costRows(data.vehicles, byVehicle, VEHICLE_KIND);
+  const [vehSel, setVehSel] = useState<string | null>(null);
 
   // Custo × investimento
   const pur = byPurpose(data, items, acc);
@@ -324,27 +328,9 @@ export function Stats({ store }: { store: Store }) {
         )}
       </section>
 
-      {/* ---------- Imóveis ---------- */}
-      {data.properties.length > 0 && (
-        <section class="card">
-          <CardHead icon="home" tone="brand" title="Custos por imóvel" sub="Total no período · média desde o 1º custo" />
-          <ul class="rank">
-            {propRows.map(({ p, total, first, count }) => (
-              <li key={p.id} class="rank-tap" role="button" tabIndex={0} aria-label={`Ver despesas de ${p.name}`}
-                onClick={() => setPropSel(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPropSel(p.id); } }}>
-                <span class={`avatar ${colorOf(p)}`} aria-hidden="true">{PROPERTY_KIND[p.kind].emoji}</span>
-                <div class="rank-main">
-                  <div class="rank-top"><span class="name">{p.name}</span><b class="num">{money(total)}</b></div>
-                  <div class="hbar"><div class={`fill ${colorOf(p)}`} style={{ width: `${(total / propMax) * 100}%` }} /></div>
-                  <div class="rank-meta">
-                    <span>{!first ? "sem custos no período" : n === 1 ? PROPERTY_KIND[p.kind].label : `média ${money(Math.round(total / count))}/mês${count < n ? ` · desde ${monthShort(first)}` : ""}`}</span>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* ---------- Imóveis e veículos ---------- */}
+      {data.properties.length > 0 && <CostCard icon="home" title="Custos por imóvel" rows={propRows} n={n} onPick={setPropSel} />}
+      {data.vehicles.length > 0 && <CostCard icon="car" title="Custos por veículo" rows={vehRows} n={n} onPick={setVehSel} />}
 
       {/* ---------- Fluxo e saldo ---------- */}
       <section class="card">
@@ -383,6 +369,12 @@ export function Stats({ store }: { store: Store }) {
           onClose={() => setPropSel(null)} />
       )}
 
+      {vehSel !== null && (
+        <CategoryDetail store={store} vehicleId={vehSel} period={label}
+          items={items.filter(({ txn: t, estimate }) => !estimate && t.type === "expense" && t.vehicleId === vehSel && (!acc || t.accountId === acc))}
+          onClose={() => setVehSel(null)} />
+      )}
+
       {/* ---------- Simulação ---------- */}
       <Simulator store={store} />
     </>
@@ -405,4 +397,35 @@ function Delta({ v, flow, suffix = "", compact }: { v: number; flow: "expense" |
   if (Math.abs(v) < 1) return <span class="delta flat">= {suffix.trim()}</span>;
   const good = flow === "income" ? v > 0 : v < 0;
   return <span class={`delta ${good ? "good" : "bad"}`}>{v > 0 ? "▲" : "▼"} {(compact ? moneyCompact : money)(Math.abs(v))}{suffix}</span>;
+}
+
+type AssetLike = { id: string; name: string; kind: string; archived?: boolean; color?: string };
+type CostRow = { p: AssetLike; emoji: string; kindLabel: string; total: number; first?: string; count: number };
+
+/** Custos por imóvel / por veículo: total no período, média por mês e por ano; tocar abre as despesas. */
+function CostCard({ icon, title, rows, n, onPick }: { icon: IconName; title: string; rows: CostRow[]; n: number; onPick: (id: string) => void }) {
+  const max = Math.max(1, ...rows.map((r) => r.total));
+  return (
+    <section class="card">
+      <CardHead icon={icon} tone="brand" title={title} sub="Total no período · média desde o 1º custo" />
+      <ul class="rank">
+        {rows.map(({ p, emoji, kindLabel, total, first, count }) => {
+          const avg = first ? Math.round(total / count) : 0;
+          return (
+            <li key={p.id} class="rank-tap" role="button" tabIndex={0} aria-label={`Ver despesas de ${p.name}`}
+              onClick={() => onPick(p.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onPick(p.id); } }}>
+              <span class={`avatar ${colorOf(p)}`} aria-hidden="true">{emoji}</span>
+              <div class="rank-main">
+                <div class="rank-top"><span class="name">{p.name}</span><b class="num">{money(total)}</b></div>
+                <div class="hbar"><div class={`fill ${colorOf(p)}`} style={{ width: `${(total / max) * 100}%` }} /></div>
+                <div class="rank-meta">
+                  <span>{!first ? "sem custos no período" : n === 1 ? kindLabel : `média ${money(avg)}/mês · ≈ ${money(avg * 12)}/ano${count < n ? ` · desde ${monthShort(first)}` : ""}`}</span>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
 }
