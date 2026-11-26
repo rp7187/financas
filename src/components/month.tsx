@@ -6,7 +6,7 @@ import type { TxnDraft } from "./txn-sheet";
 import { JoinBanner } from "./family-sync";
 import { SwipeRow, UndoToast, type SwipeAction } from "./swipe";
 import { colorOf, money, signedMoney, uid, type Txn } from "../model";
-import { Icon } from "./icons";
+import { Icon, AccountBadge } from "./icons";
 
 type View = "all" | "toPay" | "paid" | "income";
 const VIEW_LABEL: Record<View, string> = { all: "Tudo", toPay: "Falta pagar", paid: "Pago", income: "Receitas" };
@@ -144,7 +144,7 @@ export function MonthView({ store }: { store: Store }) {
           <button type="button" class={`chip ${!acc ? "on" : ""}`} onClick={() => setAccountId("")}>Todas as contas</button>
           {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).map((a) => (
             <button key={a.id} type="button" class={`chip ${acc === a.id ? "on" : ""}`} onClick={() => setAccountId(a.id)}>
-              <i class="sw" style={{ background: a.color }} />{a.name}
+              <AccountBadge a={a} />{a.name}
             </button>
           ))}
         </div>

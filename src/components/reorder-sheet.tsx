@@ -1,7 +1,7 @@
 import { useState } from "preact/hooks";
 import type { Store } from "../app";
 import { isCard, isInvestAccount, type Account } from "../model";
-import { Icon } from "./icons";
+import { Icon, AccountBadge } from "./icons";
 import { Sheet } from "./sheet";
 
 /*
@@ -44,7 +44,7 @@ export function ReorderSheet({ store, onClose }: { store: Store; onClose: () => 
           <ul class="reorder">
             {list.map((a, i) => (
               <li key={a.id}>
-                <i class="sw" style={{ background: a.color }} />
+                <AccountBadge a={a} />
                 <span class="grow">{a.name}</span>
                 <button type="button" class="icon-btn sm" aria-label={`Subir ${a.name}`} disabled={i === 0} onClick={() => move(li, i, -1)}><Icon name="up" /></button>
                 <button type="button" class="icon-btn sm" aria-label={`Descer ${a.name}`} disabled={i === list.length - 1} onClick={() => move(li, i, 1)}><Icon name="down" /></button>

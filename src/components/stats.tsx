@@ -5,7 +5,7 @@ import { addMonths, monthDiff, monthLong, monthShort, thisMonth } from "../dates
 import { balanceByMonth, byCategory, byProperty, byPurpose, expenseByNature, monthItems, monthTotals, type Item } from "../engine";
 import { PROPERTY_KIND, colorOf, isInvestment, money, moneyCompact, reais, signedMoney } from "../model";
 import { FlowBalanceChart, NATURE_LABEL, NatureChart } from "./charts";
-import { Icon, type IconName } from "./icons";
+import { Icon, type IconName, AccountBadge } from "./icons";
 import { Simulator } from "./simulator";
 import { PageHead } from "./page-head";
 import { CategoryDetail } from "./category-detail";
@@ -199,7 +199,7 @@ export function Stats({ store }: { store: Store }) {
         <div class="chips scroll" role="group" aria-label="Conta">
           <button type="button" class={`chip ${!acc ? "on" : ""}`} onClick={() => setAccountId("")}>Todas as contas</button>
           {data.accounts.filter((a) => !a.archived && !data.investments.has(a.id)).map((a) => (
-            <button key={a.id} type="button" class={`chip ${acc === a.id ? "on" : ""}`} onClick={() => setAccountId(a.id)}><i class="sw" style={{ background: a.color }} />{a.name}</button>
+            <button key={a.id} type="button" class={`chip ${acc === a.id ? "on" : ""}`} onClick={() => setAccountId(a.id)}><AccountBadge a={a} />{a.name}</button>
           ))}
         </div>
       )}
