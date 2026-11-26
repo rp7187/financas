@@ -289,11 +289,11 @@ button.tile:active { transform: scale(0.98); }
 .field { display: flex; flex-direction: column; gap: 8px; }
 .sheet input:not([type="checkbox"]), .sheet select, .sim input:not([type="checkbox"]), .sim select { background: var(--surface-2); border: 1.5px solid transparent; border-radius: 14px; padding: 12px 14px; font-size: 17px; font-weight: 500; min-height: 50px; width: 100%; color: var(--text); outline: none; }
 .sheet input:focus, .sheet select:focus, .sim input:focus, .sim select:focus { border-color: var(--brand); background-color: var(--surface); }
-.sheet label.toggle, .sim label.toggle { flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; font-weight: 550; color: var(--text); background: var(--surface-2); border-radius: 14px; padding: 12px 14px; }
-.sheet label.toggle input, .sim label.toggle input { appearance: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-3); position: relative; margin: 0; cursor: pointer; transition: background 0.2s; flex: none; }
-.sheet label.toggle input::after, .sim label.toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.2); transition: transform 0.2s; }
-.sheet label.toggle input:checked, .sim label.toggle input:checked { background: var(--income); }
-.sheet label.toggle input:checked::after, .sim label.toggle input:checked::after { transform: translateX(20px); }
+.sheet label.toggle, .sim label.toggle, .rep-result label.toggle { flex-direction: row-reverse; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; font-weight: 550; color: var(--text); background: var(--surface-2); border-radius: 14px; padding: 12px 14px; }
+.sheet label.toggle input, .sim label.toggle input, .rep-result label.toggle input { appearance: none; width: 51px; height: 31px; border-radius: 999px; background: var(--surface-3); position: relative; margin: 0; cursor: pointer; transition: background 0.2s; flex: none; }
+.sheet label.toggle input::after, .sim label.toggle input::after, .rep-result label.toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgb(0 0 0 / 0.2); transition: transform 0.2s; }
+.sheet label.toggle input:checked, .sim label.toggle input:checked, .rep-result label.toggle input:checked { background: var(--income); }
+.sheet label.toggle input:checked::after, .sim label.toggle input:checked::after, .rep-result label.toggle input:checked::after { transform: translateX(20px); }
 .money-field { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 18px; padding: 4px 16px; }
 .money-field span { font-size: 22px; color: var(--muted); font-weight: 600; }
 .sheet .money-field input, .sim .money-field input { border: 0; background: transparent; font-family: var(--num); font-size: 34px; font-weight: 750; padding: 8px 0; min-height: 64px; letter-spacing: -0.02em; }
@@ -891,3 +891,59 @@ html { zoom: var(--zoom); }
 .sched li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; }
 .sched input[type="date"] { padding: 8px 10px; }
 .sched-first { padding: 8px 2px; }
+
+/* ---------- Relatórios ---------- */
+.an-switch { margin: 0 0 14px; }
+.rep-query { display: grid; gap: 10px; }
+.rep-query .chips.scroll { margin: 0 -4px; padding: 2px 4px; }
+.rep-query .chip { box-shadow: none; background: var(--surface-2); }
+.rep-query .chip.on { background: var(--primary); color: var(--on-primary); }
+.rep-query .chip .i { width: 15px; height: 15px; }
+.rep-filters { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip.filter .caret { font-size: 10px; opacity: 0.6; margin-left: -2px; }
+.rep-search { display: flex; align-items: center; gap: 8px; background: var(--surface-2); border-radius: 12px; padding: 0 12px; }
+.rep-search .i { width: 17px; height: 17px; color: var(--muted); flex: none; }
+.rep-search input { border: 0; background: transparent; padding: 11px 0; flex: 1; min-width: 0; box-shadow: none; }
+.rep-search input:focus { outline: none; box-shadow: none; background: transparent; }
+.rep-query > .link { justify-self: start; }
+.rep-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+.rep-quick-item { display: flex; align-items: center; gap: 10px; text-align: left; border: 0; background: var(--surface); box-shadow: var(--shadow); border-radius: 16px; padding: 12px; cursor: pointer; color: var(--text); }
+.rep-quick-item .head-ic { width: 32px; height: 32px; border-radius: 10px; }
+.rep-quick-item .head-ic svg { width: 17px; height: 17px; }
+.rep-quick-item .grow { display: grid; min-width: 0; }
+.rep-quick-item b { font-size: 14px; font-weight: 650; }
+.rep-quick-item small { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rep-label { margin: 0; font-size: 13px; font-weight: 650; color: var(--muted); }
+.rep-total { font-size: 34px; font-weight: 780; letter-spacing: -0.02em; margin: 2px 0 4px; }
+.rep-sub { margin: 2px 0; font-size: 14px; color: var(--text-2); }
+.rep-toggle { margin-top: 10px; }
+.rep-bars { display: flex; align-items: flex-end; gap: 4px; height: 130px; margin-top: 14px; }
+.rep-bar { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--muted); }
+.rep-bar-track { flex: 1; width: 100%; max-width: 26px; display: flex; flex-direction: column; justify-content: flex-end; }
+.rep-bar-track i { display: block; width: 100%; }
+.rep-bar-track i.done { background: var(--brand); border-radius: 0 0 4px 4px; }
+.rep-bar-track i.planned { background: color-mix(in srgb, var(--brand) 35%, var(--surface)); border-radius: 4px 4px 0 0; }
+.rep-bar-track i.done:first-child, .rep-bar-track i.planned + i.done[style*="height: 0%"] { border-radius: 4px; }
+.rep-bar-track i.neg.done { background: var(--expense); }
+.rep-bar-track i.neg.planned { background: color-mix(in srgb, var(--expense) 35%, var(--surface)); }
+.rep-bar small { font-size: 10px; text-transform: capitalize; }
+.rep-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+.sw.done { background: var(--brand); border-radius: 3px; }
+.sw.planned { background: color-mix(in srgb, var(--brand) 35%, var(--surface)); border-radius: 3px; }
+.rep-groups { margin-top: 8px; }
+.rep-badge { width: 40px; height: 40px; display: grid; place-items: center; flex: none; }
+.rep-badge .acc-badge { width: 30px; height: 30px; border-radius: 9px; }
+.rep-badge .acc-badge .i { width: 17px; height: 17px; }
+.rep-sw { width: 14px !important; height: 14px !important; border-radius: 4px !important; }
+.cat-date small { font-size: 11px; }
+.cat-row:disabled { opacity: 1; cursor: default; color: inherit; }
+.pick-list { margin: 0; }
+.pick-list .avatar { width: 34px; height: 34px; font-size: 17px; margin: 0; }
+.pick-list .acc-badge { width: 28px; height: 28px; margin: 0 3px; }
+.pick-list .ios-row .grow { display: grid; }
+.pick-list .ios-row small { color: var(--muted); font-size: 12px; }
+.pick-box { width: 24px; height: 24px; border-radius: 7px; box-shadow: inset 0 0 0 2px var(--surface-3); display: grid; place-items: center; flex: none; }
+.pick-box.on { background: var(--brand); box-shadow: none; }
+.pick-box .i { width: 15px; height: 15px; stroke: #fff; stroke-width: 3; fill: none; }
+.pick-check { width: 20px; height: 20px; color: var(--brand); }
+.rep-result label.toggle { display: flex; font-size: 14.5px; }

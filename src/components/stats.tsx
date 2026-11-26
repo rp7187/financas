@@ -42,7 +42,7 @@ const MODE_LABEL: Record<Mode, (n: number) => string> = {
 // Lembra o período escolhido ao trocar de aba (a tela é desmontada).
 let remembered: { n: Len; start: string } | null = null;
 
-export function Stats({ store }: { store: Store }) {
+export function Stats({ store, top }: { store: Store; top?: ComponentChildren }) {
   const { data } = store;
   const [accountId, setAccountId] = useState("");
   const [flow, setFlow] = useState<"expense" | "income">("expense");
@@ -142,6 +142,7 @@ export function Stats({ store }: { store: Store }) {
   return (
     <>
       <PageHead store={store} title="Análises" />
+      {top}
 
       {/* ---------- Período (cartão de destaque) ---------- */}
       <section class="hero hero-stats">
@@ -382,7 +383,7 @@ export function Stats({ store }: { store: Store }) {
 }
 
 /** Cabeçalho de card: ícone em quadradinho colorido + título (+ subtítulo e ação à direita). */
-function CardHead({ icon, tone, title, sub, right }: { icon: IconName; tone: "expense" | "income" | "brand"; title: string; sub?: string; right?: ComponentChildren }) {
+export function CardHead({ icon, tone, title, sub, right }: { icon: IconName; tone: "expense" | "income" | "brand"; title: string; sub?: string; right?: ComponentChildren }) {
   return (
     <div class="card-head2">
       <span class={`head-ic ${tone}`}><Icon name={icon} /></span>

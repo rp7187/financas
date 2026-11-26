@@ -6,7 +6,7 @@ import type { Category, Property, Rec, Vehicle } from "./model";
 import { thisMonth } from "./dates";
 import { MonthView } from "./components/month";
 import { Accounts } from "./components/accounts";
-import { Stats } from "./components/stats";
+import { Analyses } from "./components/analyses";
 import { Settings } from "./components/settings";
 import { TxnSheet, type TxnDraft } from "./components/txn-sheet";
 import { AccountSheet, type AccountTarget } from "./components/account-sheet";
@@ -227,7 +227,7 @@ export function App() {
       <main class="page">
         {tab === "month" && <MonthView store={store} />}
         {tab === "accounts" && <Accounts store={store} />}
-        {tab === "stats" && <Stats store={store} />}
+        {tab === "stats" && <Analyses store={store} />}
         {tab === "invest" && <Investments store={store} />}
         {tab === "settings" && <Settings store={store} />}
       </main>
