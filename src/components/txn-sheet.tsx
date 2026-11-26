@@ -4,14 +4,23 @@ import { addMonths, addMonthsToDate, dayMonth, monthLong, monthOf, thisMonth, to
 import { bill, billMonthOf, type Item } from "../engine";
 import { isCard, isInvestAccount, money, splitInstallments, uid, type Account, type Flow, type Plan, type Rule, type Txn } from "../model";
 import { MoneyInput, Sheet } from "./sheet";
+import { Icon } from "./icons";
 
-/** Novo lançamento (com valores iniciais opcionais; ex.: pagamento de fatura já preenchido). */
+/** Novo lançamento (com valores iniciais opcionais; ex.: pagamento de fatura já preenchido, ou cópia de outro). */
 export type TxnDraft = {
   draft: true; type?: Flow | "transfer"; accountId?: string;
   toAccountId?: string; amount?: number; description?: string; date?: string; billFor?: string;
+  categoryId?: string; propertyId?: string; vehicleId?: string; paid?: boolean;
+  repeat?: Repeat; count?: number; every?: number; dates?: string[]; endMonth?: string;
+  /** cópia de outro lançamento (título "Duplicar") */
+  copy?: boolean;
 };
 type Kind = Flow | "transfer";
 type Repeat = "once" | "monthly" | "installments";
+
+/** Intervalo entre parcelas, em meses. */
+const EVERY: [number, string][] = [[1, "Mensal"], [2, "Bimestral"], [3, "Trimestral"], [4, "Quadrimestral"], [6, "Semestral"], [12, "Anual"]];
+const regularDates = (first: string, n: number, every: number) => Array.from({ length: n }, (_, i) => addMonthsToDate(first, i * every));
 
 const TYPE_LABEL: Record<Kind, string> = { expense: "Despesa", income: "Receita", transfer: "Transferência" };
 
@@ -29,16 +38,20 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const [type, setType] = useState<Kind>(t?.type ?? ("draft" in target ? target.type : undefined) ?? "expense");
   const [amount, setAmount] = useState(t?.amount ?? draft?.amount ?? 0);
   const [description, setDescription] = useState(t?.description ?? draft?.description ?? "");
-  const [categoryId, setCategoryId] = useState(t?.categoryId ?? "");
+  const [categoryId, setCategoryId] = useState(t?.categoryId ?? draft?.categoryId ?? "");
   const [accountId, setAccountId] = useState(t?.accountId ?? defaultAccount);
-  const [propertyId, setPropertyId] = useState(t?.propertyId ?? "");
-  const [vehicleId, setVehicleId] = useState(t?.vehicleId ?? "");
+  const [propertyId, setPropertyId] = useState(t?.propertyId ?? draft?.propertyId ?? "");
+  const [vehicleId, setVehicleId] = useState(t?.vehicleId ?? draft?.vehicleId ?? "");
   const [toAccountId, setToAccountId] = useState(t?.toAccountId ?? draft?.toAccountId ?? accounts.find((a) => a.id !== defaultAccount && !isCard(a))?.id ?? "");
   const [date, setDate] = useState(t?.date ?? draft?.date ?? defaultDate);
-  const [paid, setPaid] = useState(t ? t.paid : defaultDate <= todayISO());
-  const [repeat, setRepeat] = useState<Repeat>("once");
-  const [count, setCount] = useState("2");
-  const [endMonth, setEndMonth] = useState("");
+  const [paid, setPaid] = useState(t ? t.paid : draft?.paid ?? (draft?.date ?? defaultDate) <= todayISO());
+  const [repeat, setRepeat] = useState<Repeat>(draft?.repeat ?? "once");
+  const [count, setCount] = useState(String(draft?.count ?? 2));
+  const [endMonth, setEndMonth] = useState(draft?.endMonth ?? "");
+  /** Parcelado: meses entre parcelas e, se ajustadas à mão, as datas de cada uma. */
+  const [every, setEvery] = useState(draft?.every ?? 1);
+  const [customDates, setCustomDates] = useState<string[] | null>(draft?.dates ?? null);
+  const [showDates, setShowDates] = useState(!!draft?.dates);
   const [scope, setScope] = useState<"this" | "future">("this");
   /** Parcela: editar só ela ou a compra inteira (todas as parcelas). */
   const [planScope, setPlanScope] = useState<"this" | "all">("this");
@@ -71,10 +84,21 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
   const choosePlanScope = (s: "this" | "all") => {
     if (!plan || s === planScope) return;
     setPlanScope(s); setError(null);
-    if (s === "all") { setAmount(plan.total); setDate(plan.firstDate); setCount(String(plan.count)); }
+    if (s === "all") {
+      setAmount(plan.total); setDate(plan.firstDate); setCount(String(plan.count)); setEvery(plan.every ?? 1);
+      // datas atuais das parcelas: se alguma foi mudada à mão (ou o parcelamento tem datas próprias), mantém
+      const cur = data.txns.filter((x) => x.planId === plan.id && x.installment).sort((a, b) => a.installment! - b.installment!).map((x) => x.date);
+      const reg = regularDates(plan.firstDate, plan.count, plan.every ?? 1);
+      const custom = plan.dates ?? (cur.length === plan.count && cur.some((d, i) => d !== reg[i]) ? cur : null);
+      setCustomDates(custom); setShowDates(!!custom);
+    }
     else { setAmount(t!.amount); setDate(t!.date); }
   };
   const splitting = (isNew && repeat === "installments") || allPlan;
+  /** Datas das parcelas: as ajustadas à mão, ou a cada `every` meses a partir da primeira. */
+  const schedule = customDates && customDates.length === n ? [date, ...customDates.slice(1)] : regularDates(date, n, every);
+  const custom = !!customDates && customDates.length === n;
+  const planShape = () => ({ every: every > 1 ? every : undefined, dates: custom ? schedule : undefined });
   /** Lançamento único já gravado: pode virar mensal (o próprio lançamento vira o 1º mês confirmado). */
   const canMakeMonthly = !!item && !item.virtual && !item.rule && !item.plan && !item.bill && !item.txn.ruleId && !item.txn.planId && type !== "transfer";
 
@@ -86,6 +110,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       if (!toAccountId || toAccountId === accountId) return "Escolha contas diferentes de origem e destino.";
     } else if (!categoryId) return "Escolha a categoria.";
     if (splitting && (n < 2 || n > 120)) return "Parcelas: de 2 a 120.";
+    if (splitting && schedule.some((d, i) => !d || (i > 0 && d < schedule[i - 1]))) return "As datas das parcelas precisam estar preenchidas e em ordem.";
     if ((isNew || canMakeMonthly) && repeat === "monthly" && endMonth && endMonth < monthOf(date)) return "O fim da recorrência é antes do início.";
     return null;
   }
@@ -120,10 +145,11 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
         if (paid && !onCard) recs.push({ id: uid(), t: "txn", updatedAt: 0, ...b, ruleId: rule.id, ruleMonth: rule.startMonth } as Txn);
         await store.put(recs);
       } else {
-        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(b.propertyId ? { propertyId: b.propertyId } : {}), ...(b.vehicleId ? { vehicleId: b.vehicleId } : {}) };
+        const shape = planShape();
+        const plan: Plan = { id: uid(), t: "plan", updatedAt: 0, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...(shape.every ? { every: shape.every } : {}), ...(shape.dates ? { dates: shape.dates } : {}), ...(b.propertyId ? { propertyId: b.propertyId } : {}), ...(b.vehicleId ? { vehicleId: b.vehicleId } : {}) };
         const today = todayISO();
         const parts = splitInstallments(amount, n).map((v, i): Txn => {
-          const d = addMonthsToDate(date, i);
+          const d = schedule[i];
           return { id: uid(), t: "txn", updatedAt: 0, ...b, amount: v, date: d, paid: onCard || (paid && d <= today), planId: plan.id, installment: i + 1 } as Txn;
         });
         await store.put([plan, ...parts]);
@@ -160,10 +186,10 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       const wasCard = isCard(data.accounts.find((a) => a.id === p.accountId));
       const existing = new Map(data.txns.filter((x) => x.planId === p.id && x.installment).map((x) => [x.installment!, x]));
       const values = splitInstallments(amount, n);
-      const recs: (Plan | Txn)[] = [{ ...p, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, propertyId: b.propertyId, vehicleId: b.vehicleId }];
+      const recs: (Plan | Txn)[] = [{ ...p, type: type as Flow, total: amount, count: n, description: b.description, categoryId, accountId, firstDate: date, ...planShape(), propertyId: b.propertyId, vehicleId: b.vehicleId }];
       values.forEach((v, i) => {
         const old = existing.get(i + 1);
-        const d = addMonthsToDate(date, i);
+        const d = schedule[i];
         const paidNow = onCard || (old && !wasCard ? old.paid : d <= today);
         // parcela excluída antes ("só esta parcela") continua excluída; só cria as que passaram do nº antigo
         if (old) recs.push({ ...old, ...b, amount: v, date: d, paid: paidNow, installment: i + 1 } as Txn);
@@ -212,10 +238,63 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
     onClose();
   }
 
-  const title = isNew ? "Novo lançamento"
+  /** Duplicar: abre um lançamento novo com os mesmos dados (só grava ao salvar). */
+  const duplicate = () => {
+    const tx = item!.txn;
+    const copy: TxnDraft = {
+      draft: true, copy: true, type, amount, description, date, accountId, paid: onCard ? undefined : paid,
+      ...(type === "transfer" ? { toAccountId, ...(billFor ? { billFor } : {}) } : { categoryId }),
+      ...(propertyId ? { propertyId } : {}), ...(vehicleId ? { vehicleId } : {}),
+    };
+    // compra parcelada inteira: copia o parcelamento (total, nº, frequência e datas); recorrente: continua mensal
+    if (allPlan) Object.assign(copy, { repeat: "installments", count: n, every, ...(custom ? { dates: schedule } : {}) });
+    else if (item!.rule && scope === "future") Object.assign(copy, { repeat: "monthly", date: tx.date });
+    store.openTxn(copy);
+  };
+
+  const title = isNew ? (draft?.copy ? "Duplicar lançamento" : "Novo lançamento")
     : item!.plan ? (allPlan ? "Compra parcelada" : `Parcela ${item!.txn.installment}/${item!.plan.count}`)
     : item!.rule ? `Recorrente · ${monthLong(item!.txn.ruleMonth!)}`
     : `Editar ${TYPE_LABEL[type].toLowerCase()}`;
+
+  // Parcelado: nº de parcelas, frequência e (opcional) datas de cada parcela ajustadas à mão
+  const values = n >= 2 && n <= 120 ? splitInstallments(amount, n) : [];
+  const scheduleUI = (
+    <>
+      <div class="two">
+        <label>Número de parcelas<input type="number" inputMode="numeric" min="2" max="120" value={count} onInput={(e) => { setCount(e.currentTarget.value); setCustomDates(null); setError(null); }} /></label>
+        <label>Frequência
+          <select value={every} disabled={custom} onChange={(e) => { setEvery(Number(e.currentTarget.value)); setCustomDates(null); }}>
+            {EVERY.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+            {!EVERY.some(([k]) => k === every) && <option value={every}>A cada {every} meses</option>}
+          </select>
+        </label>
+      </div>
+      {values.length > 0 && (
+        <>
+          <button type="button" class="link" onClick={() => setShowDates(!showDates)}>
+            {showDates ? "Ocultar datas" : `Ver e ajustar as datas (${schedule.map((d) => dayMonth(d)).slice(0, 3).join(", ")}${n > 3 ? "…" : ""})`}
+          </button>
+          {showDates && (
+            <ol class="sched">
+              {schedule.map((d, i) => (
+                <li key={i}>
+                  <span class="muted num">{i + 1}ª</span>
+                  {i === 0
+                    ? <span class="sched-first">{d.split("-").reverse().join("/")} <small class="muted">(primeira data)</small></span>
+                    : <input type="date" value={d} aria-label={`Data da parcela ${i + 1}`} onInput={(e) => { const v = e.currentTarget.value; setCustomDates(schedule.map((x, j) => (j === i ? v : x))); setError(null); }} />}
+                  <b class="num">{money(values[i])}</b>
+                </li>
+              ))}
+            </ol>
+          )}
+          {custom && (
+            <p class="muted small hint">Datas ajustadas à mão. <button type="button" class="link" onClick={() => setCustomDates(null)}>Voltar para {EVERY.find(([k]) => k === every)?.[1].toLowerCase() ?? `a cada ${every} meses`}</button></p>
+          )}
+        </>
+      )}
+    </>
+  );
 
   if (deleting && item) {
     return (
@@ -312,7 +391,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       {onCard && cardBillMonth && (
         <p class="muted small hint">
           {type === "income" ? "Estorno/crédito: abate" : "Entra"} na fatura que vence {cardBill ? `${dayMonth(cardBill.due)}` : monthLong(cardBillMonth).toLowerCase()}
-          {splitting ? " (1ª parcela; as demais nas faturas seguintes)" : ""}.
+          {splitting ? ` (1ª parcela; as demais nas faturas ${every === 1 && !custom ? "seguintes" : "das datas de cada parcela"})` : ""}.
         </p>
       )}
 
@@ -336,7 +415,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
       {!onCard && !allPlan && (
         <label class="toggle">
           <input type="checkbox" checked={paid} onChange={(e) => setPaid(e.currentTarget.checked)} />
-          <span>{type === "income" ? "Recebido" : type === "transfer" ? "Realizada" : "Pago"}{isNew && repeat !== "once" ? " (1ª ocorrência)" : ""}</span>
+          <span>{type === "income" ? "Recebido" : type === "transfer" ? "Realizada" : "Pago"}{isNew && repeat === "monthly" ? " (1ª ocorrência)" : isNew && repeat === "installments" ? " (parcelas com data até hoje)" : ""}</span>
         </label>
       )}
 
@@ -352,9 +431,7 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
           {repeat === "monthly" && (
             <label>Até (opcional — em branco = sem fim)<input type="month" value={endMonth} min={monthOf(date)} onInput={(e) => setEndMonth(e.currentTarget.value)} /></label>
           )}
-          {repeat === "installments" && (
-            <label>Número de parcelas<input type="number" inputMode="numeric" min="2" max="120" value={count} onInput={(e) => { setCount(e.currentTarget.value); setError(null); }} /></label>
-          )}
+          {repeat === "installments" && scheduleUI}
         </div>
       )}
 
@@ -374,11 +451,14 @@ export function TxnSheet({ store, target, onClose }: { store: Store; target: Ite
             <button type="button" class={planScope === "this" ? "on" : ""} aria-pressed={planScope === "this"} onClick={() => choosePlanScope("this")}>Só esta parcela</button>
             <button type="button" class={planScope === "all" ? "on" : ""} aria-pressed={planScope === "all"} onClick={() => choosePlanScope("all")}>Compra inteira</button>
           </div>
-          {allPlan && <label>Número de parcelas<input type="number" inputMode="numeric" min="2" max="120" value={count} onInput={(e) => { setCount(e.currentTarget.value); setError(null); }} /></label>}
+          {allPlan && scheduleUI}
           <p class="muted small hint">{allPlan
             ? "Valor total, descrição, categoria, conta e datas valem para todas as parcelas (as já pagas continuam pagas)."
             : `Parcelamento: ${money(plan.total)} em ${plan.count}× · muda só a parcela ${t!.installment}.`}</p>
         </div>
+      )}
+      {item && !item.bill && !item.estimate && (
+        <button type="button" class="btn ghost wide" onClick={duplicate}><Icon name="copy" />Duplicar lançamento</button>
       )}
       {error && <p class="error" role="alert">{error}</p>}
     </Sheet>

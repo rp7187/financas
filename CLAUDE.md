@@ -22,7 +22,8 @@ Nenhuma versão nova pode perder ou tornar ilegível o que já foi gravado.
 - Valores em centavos (inteiros); datas `AAAA-MM-DD`, meses `AAAA-MM`.
 - `rule` (recorrente mensal) não grava um registro por mês: os meses são calculados (`engine.ts`).
   Um `txn` com `ruleId` + `ruleMonth` confirma/ajusta aquele mês; excluído = mês pulado.
-- `plan` (parcelado) grava uma `txn` por parcela (`planId`, `installment`).
+- `plan` (parcelado) grava uma `txn` por parcela (`planId`, `installment`). `every` (opcional) = meses entre
+  parcelas (ausente = mensal); `dates` (opcional) = datas ajustadas à mão (ex.: reforços de obra).
 - Transferência = `txn` com `type: "transfer"`, `accountId` → `toAccountId`; não entra em receitas/despesas.
 - Cartão de crédito = conta `kind: "credit"`; fatura calculada por ciclo (`engine.ts`), paga por transferência com `billFor`.
   Saldo em caixa: compra no cartão conta como despesa no mês da compra, mas só sai do saldo das contas no pagamento da fatura.

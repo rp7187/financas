@@ -136,6 +136,8 @@ export function App() {
   const [valuations, setValuations] = useState(false);
   const [month, setMonth] = useState(thisMonth());
   const [txnSheet, setTxnSheet] = useState<Item | TxnDraft | null>(null);
+  const [txnKey, setTxnKey] = useState(0); // formulário novo a cada abertura (ex.: duplicar a partir de outro)
+  const openTxn = (x: Item | TxnDraft) => { setTxnKey((k) => k + 1); setTxnSheet(x); };
   const [accountSheet, setAccountSheet] = useState<AccountTarget | undefined>(undefined);
   const [categorySheet, setCategorySheet] = useState<Category | { type: Category["type"] } | null>(null);
   const [propertySheet, setPropertySheet] = useState<Property | null | undefined>(undefined);
@@ -210,7 +212,7 @@ export function App() {
       location.reload();
     },
     sync: syncState,
-    openTxn: setTxnSheet,
+    openTxn,
     openAccount: setAccountSheet,
     openCategory: setCategorySheet,
     openProperty: setPropertySheet,
@@ -231,10 +233,10 @@ export function App() {
       </main>
       <nav class="tabbar" aria-label="Navegação">
         {TABS.slice(0, 2).map((t) => <TabButton key={t.id} t={t} on={tab === t.id} go={() => { setTab(t.id); window.scrollTo(0, 0); }} />)}
-        <button type="button" class="plus" aria-label="Novo lançamento" onClick={() => setTxnSheet({ draft: true })}><Icon name="plus" /></button>
+        <button type="button" class="plus" aria-label="Novo lançamento" onClick={() => openTxn({ draft: true })}><Icon name="plus" /></button>
         {TABS.slice(2).map((t) => <TabButton key={t.id} t={t} on={tab === t.id} go={() => { setTab(t.id); window.scrollTo(0, 0); }} />)}
       </nav>
-      {txnSheet && <TxnSheet store={store} target={txnSheet} onClose={() => setTxnSheet(null)} />}
+      {txnSheet && <TxnSheet key={txnKey} store={store} target={txnSheet} onClose={() => setTxnSheet(null)} />}
       {accountSheet !== undefined && <AccountSheet store={store} account={accountSheet} onClose={() => setAccountSheet(undefined)} />}
       {categorySheet && <CategorySheet store={store} target={categorySheet} onClose={() => setCategorySheet(null)} />}
       {valuations && <ValuationSheet store={store} onClose={() => setValuations(false)} />}

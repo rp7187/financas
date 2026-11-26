@@ -141,6 +141,8 @@ export type Plan = Base & {
   categoryId: string;
   accountId: string;
   firstDate: string;
+  every?: number; // meses entre parcelas (ausente = 1, mensal; ex.: 6 = semestral)
+  dates?: string[]; // datas de cada parcela, quando ajustadas à mão (ex.: reforços de obra)
   propertyId?: string;
   vehicleId?: string;
 };
