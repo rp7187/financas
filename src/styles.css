@@ -947,3 +947,4 @@ html { zoom: var(--zoom); }
 .pick-box .i { width: 15px; height: 15px; stroke: #fff; stroke-width: 3; fill: none; }
 .pick-check { width: 20px; height: 20px; color: var(--brand); }
 .rep-result label.toggle { display: flex; font-size: 14.5px; }
+.month-search { margin: 0 0 14px; background: var(--surface); box-shadow: var(--shadow); }

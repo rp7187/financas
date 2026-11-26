@@ -16,6 +16,7 @@ export function MonthView({ store }: { store: Store }) {
   const [accountId, setAccountId] = useState<string>("");
   const [view, setView] = useState<View>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [text, setText] = useState("");
   const [toast, setToast] = useState<{ text: string; undo?: () => void; key: number } | null>(null);
   const acc = accountId || undefined;
   const all = monthItems(data, month);
@@ -36,7 +37,17 @@ export function MonthView({ store }: { store: Store }) {
   const pendingBills = pendingExpItems.filter((it) => it.bill).length;
 
   // Filtro pelas caixas do topo: tocar em "Falta pagar" mostra só o que falta pagar etc.
-  const shown = items.filter(({ txn: t, bill, estimate }) =>
+  // Busca: descrição, categoria, conta, imóvel ou veículo (sem acento e sem diferenciar maiúsculas)
+  const q = norm(text.trim());
+  const matches = (it: Item) => {
+    if (!q) return true;
+    if (it.estimate) return false;
+    const t = it.txn;
+    const names = [t.description, data.categories.find((c) => c.id === t.categoryId)?.name, data.accounts.find((a) => a.id === t.accountId)?.name,
+      data.accounts.find((a) => a.id === t.toAccountId)?.name, data.properties.find((p) => p.id === t.propertyId)?.name, data.vehicles.find((v) => v.id === t.vehicleId)?.name];
+    return names.some((n) => n && norm(n).includes(q));
+  };
+  const shown = items.filter((it) => matches(it)).filter(({ txn: t, bill, estimate }) =>
     view === "all" ? true
     : estimate ? false
     : view === "income" ? t.type === "income"
@@ -150,11 +161,23 @@ export function MonthView({ store }: { store: Store }) {
         </div>
       )}
 
-      {tot.overdue > 0 && view !== "toPay" && (
+      <label class="rep-search month-search">
+        <Icon name="search" />
+        <input type="search" value={text} placeholder="Buscar neste mês (descrição, categoria, conta…)" onInput={(e) => setText(e.currentTarget.value)} />
+      </label>
+
+      {tot.overdue > 0 && view !== "toPay" && !q && (
         <button type="button" class="alert" onClick={() => pick("toPay")}><Icon name="alert" />{tot.overdue} lançamento{tot.overdue > 1 ? "s" : ""} pendente{tot.overdue > 1 ? "s" : ""} com data vencida<Icon name="chevR" class="tile-chev" /></button>
       )}
 
       <div id="lista" />
+      {q && view === "all" && (
+        <div class="filter-bar" role="status">
+          <span><b>“{text.trim()}”</b> · {shown.length} lançamento{shown.length === 1 ? "" : "s"} · <span class="num">{signedMoney(shown.reduce((s, it) => s + (it.txn.type === "income" ? it.txn.amount : it.txn.type === "expense" || it.bill ? -it.txn.amount : 0), 0))}</span></span>
+          <button type="button" class="link" onClick={() => setText("")}>Limpar</button>
+        </div>
+      )}
+      {q && !shown.length && <p class="empty muted">Nada encontrado em {monthLong(month).toLowerCase()}.</p>}
       {view !== "all" && (
         <div class="filter-bar" role="status">
           <span><b>{VIEW_LABEL[view]}</b> · {shown.length} lançamento{shown.length === 1 ? "" : "s"} · <span class="num">{money(shown.reduce((s, it) => s + it.txn.amount, 0))}</span></span>
@@ -165,7 +188,7 @@ export function MonthView({ store }: { store: Store }) {
         <p class="empty muted">{view === "toPay" ? "Nada a pagar neste mês. 🎉" : view === "paid" ? "Nenhuma despesa paga ainda neste mês." : "Nenhuma receita neste mês."}</p>
       )}
 
-      {!items.length && view === "all" && (
+      {!items.length && view === "all" && !q && (
         <div class="empty muted">
           <p>Nenhum lançamento em {monthLong(month).toLowerCase()}.</p>
           <button type="button" class="btn brand" onClick={() => store.openTxn({ draft: true })}><Icon name="plus" />Novo lançamento</button>
@@ -195,6 +218,8 @@ export function MonthView({ store }: { store: Store }) {
     </>
   );
 }
+
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function Row({ store, it, accountId, onToggle }: { store: Store; it: Item; accountId?: string; onToggle: () => void }) {
   const { data } = store;

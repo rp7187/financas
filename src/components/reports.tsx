@@ -205,8 +205,8 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
           <FilterChip on={q.flow !== "expense"} onClick={() => setPick("flow")}>{FLOW_LABEL[q.flow]}</FilterChip>
           <FilterChip on={q.cats.length > 0} onClick={() => setPick("cats")}>{chipLabel("Categorias", q.cats, data.categories, "Sem categoria")}</FilterChip>
           <FilterChip on={q.accs.length > 0} onClick={() => setPick("accs")}>{chipLabel("Contas", q.accs, data.accounts, "—")}</FilterChip>
-          {data.properties.length > 0 && <FilterChip on={q.props.length > 0} onClick={() => setPick("props")}>{chipLabel("Imóveis", q.props, data.properties, "Sem imóvel")}</FilterChip>}
-          {data.vehicles.length > 0 && <FilterChip on={q.vehs.length > 0} onClick={() => setPick("vehs")}>{chipLabel("Veículos", q.vehs, data.vehicles, "Sem veículo")}</FilterChip>}
+          <FilterChip on={q.props.length > 0} onClick={() => setPick("props")}>{chipLabel("Imóveis", q.props, data.properties, "Sem imóvel")}</FilterChip>
+          <FilterChip on={q.vehs.length > 0} onClick={() => setPick("vehs")}>{chipLabel("Veículos", q.vehs, data.vehicles, "Sem veículo")}</FilterChip>
           <FilterChip on={q.natures.length > 0} onClick={() => setPick("natures")}>{q.natures.length === 1 ? NATURE_LABEL[q.natures[0]] : q.natures.length ? `Natureza (${q.natures.length})` : "Natureza"}</FilterChip>
           <FilterChip on={q.status !== "all"} onClick={() => setPick("status")}>{q.status === "all" ? "Situação" : STATUS_LABEL[q.status]}</FilterChip>
         </div>
@@ -328,9 +328,11 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         options={data.categories.filter((c) => q.flow === "both" || c.type === q.flow).map((c) => ({ id: c.id, label: c.name, icon: <span class={`avatar ${colorOf(c)}`}>{c.emoji}</span>, sub: c.archived ? "arquivada" : q.flow === "both" ? (c.type === "income" ? "receita" : "despesa") : undefined }))} />}
       {pick === "accs" && <MultiSheet title="Contas e cartões" value={q.accs} onDone={(v) => { set({ accs: v }); setPick(null); }} onClose={() => setPick(null)}
         options={data.accounts.filter((a) => !data.investments.has(a.id)).map((a) => ({ id: a.id, label: a.name, icon: <AccountBadge a={a} />, sub: a.archived ? "arquivada" : undefined }))} />}
-      {pick === "props" && <MultiSheet title="Imóveis" value={q.props} onDone={(v) => { set({ props: v }); setPick(null); }} onClose={() => setPick(null)}
+      {pick === "props" && !data.properties.length && <EmptyPick title="Imóveis" what="imóvel" onAdd={() => { setPick(null); store.openProperty(null); }} onClose={() => setPick(null)} />}
+      {pick === "vehs" && !data.vehicles.length && <EmptyPick title="Veículos" what="veículo" onAdd={() => { setPick(null); store.openVehicle(null); }} onClose={() => setPick(null)} />}
+      {pick === "props" && data.properties.length > 0 && <MultiSheet title="Imóveis" value={q.props} onDone={(v) => { set({ props: v }); setPick(null); }} onClose={() => setPick(null)}
         options={[...data.properties.map((p) => ({ id: p.id, label: p.name, icon: <span class={`avatar ${colorOf(p)}`}>{PROPERTY_KIND[p.kind].emoji}</span> })), { id: "", label: "Sem imóvel" }]} />}
-      {pick === "vehs" && <MultiSheet title="Veículos" value={q.vehs} onDone={(v) => { set({ vehs: v }); setPick(null); }} onClose={() => setPick(null)}
+      {pick === "vehs" && data.vehicles.length > 0 && <MultiSheet title="Veículos" value={q.vehs} onDone={(v) => { set({ vehs: v }); setPick(null); }} onClose={() => setPick(null)}
         options={[...data.vehicles.map((v) => ({ id: v.id, label: v.name, icon: <span class={`avatar ${colorOf(v)}`}>{VEHICLE_KIND[v.kind].emoji}</span> })), { id: "", label: "Sem veículo" }]} />}
       {pick === "natures" && <MultiSheet title="Natureza" value={q.natures} onDone={(v) => { set({ natures: v as Nature[] }); setPick(null); }} onClose={() => setPick(null)}
         options={(["fixed", "installment", "variable"] as Nature[]).map((k) => ({ id: k, label: NATURE_LABEL[k], icon: <i class={`sw ${k} rep-sw`} />, sub: k === "fixed" ? "recorrentes mensais" : k === "installment" ? "parcelamentos" : "lançamentos únicos" }))} />}
@@ -398,6 +400,16 @@ function PeriodSheet({ from, to, onDone, onClose }: { from: string; to: string; 
         <label>Até<input type="month" value={b} onInput={(e) => setB(e.currentTarget.value)} /></label>
       </div>
       {err && <p class="error">{err}</p>}
+    </Sheet>
+  );
+}
+
+/** Filtro de imóvel/veículo sem nenhum cadastrado: explica e oferece cadastrar. */
+function EmptyPick({ title, what, onAdd, onClose }: { title: string; what: string; onAdd: () => void; onClose: () => void }) {
+  return (
+    <Sheet title={title} onClose={onClose} onSubmit={(e) => { e.preventDefault(); onAdd(); }}
+      actions={<><button type="button" class="btn ghost" onClick={onClose}>Fechar</button><button type="submit" class="btn primary">Cadastrar {what}</button></>}>
+      <p class="muted">Nenhum {what} cadastrado ainda. Cadastre e, ao lançar uma despesa, escolha o {what} — aí dá para filtrar aqui e ver quanto ele custa por mês e por ano.</p>
     </Sheet>
   );
 }
