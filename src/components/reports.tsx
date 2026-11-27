@@ -33,6 +33,7 @@ const PRESETS: { id: string; label: string; range: () => [string, string] }[] = 
   { id: "month", label: "Este mês", range: () => [cur(), cur()] },
   { id: "last", label: "Mês passado", range: () => [addMonths(cur(), -1), addMonths(cur(), -1)] },
   { id: "year", label: "Este ano", range: () => [`${yearOf(cur())}-01`, `${yearOf(cur())}-12`] },
+  { id: "restOfYear", label: "Até o fim do ano", range: () => [cur(), `${yearOf(cur())}-12`] },
   { id: "lastYear", label: "Ano passado", range: () => { const y = Number(yearOf(cur())) - 1; return [`${y}-01`, `${y}-12`]; } },
   { id: "nextYear", label: "Próximo ano", range: () => { const y = Number(yearOf(cur())) + 1; return [`${y}-01`, `${y}-12`]; } },
   { id: "12m", label: "Últimos 12 meses", range: () => [addMonths(cur(), -11), cur()] },
@@ -124,6 +125,10 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
   const prevRows = focus ? runQuery(data, q, addMonths(focus, -1), addMonths(focus, -1)) : runQuery(data, q, addMonths(from, -len), addMonths(to, -len));
   const label = focus ? monthLong(focus) : rangeLabel(from, to);
   const prevLabel = focus ? monthLong(addMonths(focus, -1)) : rangeLabel(addMonths(from, -len), addMonths(to, -len));
+  /** Desmarcar o período (tocar de novo, ou ✕ na etiqueta): volta ao padrão, este ano. */
+  const [defFrom, defTo] = PRESETS[2].range();
+  const isDefaultPeriod = from === defFrom && to === defTo;
+  const unselectPeriod = () => { if (!isDefaultPeriod) set({ from: defFrom, to: defTo, focus: undefined }); };
   const toggleFocus = (m: string) => set({ focus: focus === m ? undefined : m }, false);
   const prevTotal = prevRows.reduce((s, r) => s + valueOf(q, r), 0);
   const preset = PRESETS.find((p) => { const [a, b] = p.range(); return a === from && b === to; });
@@ -222,7 +227,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         <div class="chips scroll rep-periods" role="group" aria-label="Período">
           {PRESETS.map((p) => (
             <button key={p.id} type="button" class={`chip ${preset?.id === p.id ? "on" : ""}`} aria-pressed={preset?.id === p.id}
-              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to || focus) set({ from: a, to: b, focus: undefined }); }}>{p.label}</button>
+              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to || focus) set({ from: a, to: b, focus: undefined }); else unselectPeriod(); }}>{p.label}</button>
           ))}
           <button type="button" class={`chip ${!preset ? "on" : ""}`} onClick={() => setPick("period")}><Icon name="calendar" />{preset ? "Escolher meses" : rangeLabel(from, to)}</button>
         </div>
@@ -246,7 +251,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         <div class="rep-trail">
           {history.length > 0 && <button type="button" class="trail-back" onClick={back}><Icon name="chevL" />Voltar</button>}
           <div class="trail-tokens">
-            <span class="token period">{rangeLabel(from, to)}</span>
+            {isDefaultPeriod ? <span class="token period">{rangeLabel(from, to)}</span> : <Token onRemove={unselectPeriod}>{rangeLabel(from, to)}</Token>}
             {focus && <Token onRemove={() => toggleFocus(focus)}>{monthLong(focus)}</Token>}
             {q.flow !== "expense" && <Token onRemove={() => set({ flow: "expense", cats: [] })}>{FLOW_LABEL[q.flow]}</Token>}
             {q.cats.map((id) => <Token key={id} onRemove={() => set({ cats: q.cats.filter((x) => x !== id) })}>{data.categories.find((c) => c.id === id)?.name ?? "Sem categoria"}</Token>)}
@@ -419,6 +424,7 @@ function Quick({ store, onPick }: { store: Store; onPick: (p: Partial<Query>) =>
   const y = Number(yearOf(cur()));
   const yr = (n: number): [string, string] => [`${n}-01`, `${n}-12`];
   const items: { label: string; sub: string; icon: "trend" | "tag" | "home" | "car" | "down" | "calendar"; q: Partial<Query> }[] = [
+    { label: `Previsto até o fim de ${y}`, sub: `o que ainda falta pagar até dez/${String(y).slice(2)}`, icon: "calendar", q: { ...EMPTY, from: cur(), to: `${y}-12`, status: "planned", group: "month" } },
     { label: `Previsto para ${y + 1}`, sub: "despesas do próximo ano, por mês", icon: "trend", q: { ...EMPTY, from: yr(y + 1)[0], to: yr(y + 1)[1], group: "month" } },
     { label: `${y} por categoria`, sub: "despesas deste ano", icon: "tag", q: { ...EMPTY, from: yr(y)[0], to: yr(y)[1], group: "category" } },
     { label: "Mês passado por categoria", sub: monthLong(addMonths(cur(), -1)), icon: "calendar", q: { ...EMPTY, from: addMonths(cur(), -1), to: addMonths(cur(), -1), group: "category" } },
