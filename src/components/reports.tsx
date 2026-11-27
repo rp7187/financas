@@ -45,6 +45,10 @@ let remembered: Query | null = null; // a consulta continua ao trocar de aba
 let rememberedHistory: Query[] = []; // passos anteriores (para "Voltar")
 
 const FLOW_LABEL: Record<Flow, string> = { expense: "Despesas", income: "Receitas", both: "Receitas e despesas" };
+const FLOW_SHORT: Record<Flow, string> = { expense: "despesas", income: "receitas", both: "receitas e despesas" };
+/** Intervalo curto para os botões de período: "nov/26", "2026", "nov/26 – dez/26". */
+const shortRange = (a: string, b: string) =>
+  a === b ? monthShort(a) : a.endsWith("-01") && b.endsWith("-12") && yearOf(a) === yearOf(b) ? yearOf(a) : `${monthShort(a)} – ${monthShort(b)}`;
 const STATUS_LABEL: Record<Status, string> = { all: "Realizado e previsto", done: "Só realizado", planned: "Só previsto" };
 const GROUP_LABEL: Record<Group, string> = { category: "Categoria", month: "Mês", account: "Conta", property: "Imóvel", vehicle: "Veículo", nature: "Natureza" };
 
@@ -179,7 +183,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
     : q.group === "property" ? q.props.length === 1 && q.props[0] === k
     : q.group === "vehicle" ? q.vehs.length === 1 && q.vehs[0] === k
     : q.natures.length === 1 && q.natures[0] === k;
-  const groupsAvail: Group[] = ["category", "month", "account", "nature", ...(data.properties.length ? ["property" as const] : []), ...(data.vehicles.length ? ["vehicle" as const] : [])];
+  const groupsAvail: Group[] = ["category", "month", "account", ...(data.properties.length ? ["property" as const] : []), ...(data.vehicles.length ? ["vehicle" as const] : [])];
 
   // a estimativa entra no total, mas não na lista (uma linha por mês só polui)
   const estSum = rows.filter((r) => r.estimate).reduce((s, r) => s + r.txn.amount, 0);
@@ -224,20 +228,28 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
 
       {/* ---------- Consulta ---------- */}
       <section class="card rep-query">
-        <div class="chips scroll rep-periods" role="group" aria-label="Período">
-          {PRESETS.map((p) => (
-            <button key={p.id} type="button" class={`chip ${preset?.id === p.id ? "on" : ""}`} aria-pressed={preset?.id === p.id}
-              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to || focus) set({ from: a, to: b, focus: undefined }); else unselectPeriod(); }}>{p.label}</button>
-          ))}
-          <button type="button" class={`chip ${!preset ? "on" : ""}`} onClick={() => setPick("period")}><Icon name="calendar" />{preset ? "Escolher meses" : rangeLabel(from, to)}</button>
+        <span class="rep-section">Período</span>
+        <div class="rep-periods" role="group" aria-label="Período">
+          {PRESETS.map((p) => {
+            const [a, b] = p.range();
+            return (
+              <button key={p.id} type="button" class={preset?.id === p.id ? "on" : ""} aria-pressed={preset?.id === p.id}
+                onClick={() => { if (a !== from || b !== to || focus) set({ from: a, to: b, focus: undefined }); else unselectPeriod(); }}>
+                <b>{p.label}</b><small>{shortRange(a, b)}</small>
+              </button>
+            );
+          })}
+          <button type="button" class={!preset ? "on" : ""} aria-pressed={!preset} onClick={() => setPick("period")}>
+            <b><Icon name="calendar" />Escolher meses</b><small>{!preset ? shortRange(from, to) : "de … até …"}</small>
+          </button>
         </div>
+        <span class="rep-section">Filtros</span>
         <div class="chips rep-filters">
-          <FilterChip on={q.flow !== "expense"} onClick={() => setPick("flow")}>{FLOW_LABEL[q.flow]}</FilterChip>
+          <FilterChip on={q.flow !== "expense"} onClick={() => setPick("flow")}>Tipo: {FLOW_SHORT[q.flow]}</FilterChip>
           <FilterChip on={q.cats.length > 0} onClick={() => setPick("cats")}>{chipLabel("Categorias", q.cats, data.categories, "Sem categoria")}</FilterChip>
           <FilterChip on={q.accs.length > 0} onClick={() => setPick("accs")}>{chipLabel("Contas", q.accs, data.accounts, "—")}</FilterChip>
           <FilterChip on={q.props.length > 0} onClick={() => setPick("props")}>{chipLabel("Imóveis", q.props, data.properties, "Sem imóvel")}</FilterChip>
           <FilterChip on={q.vehs.length > 0} onClick={() => setPick("vehs")}>{chipLabel("Veículos", q.vehs, data.vehicles, "Sem veículo")}</FilterChip>
-          <FilterChip on={q.natures.length > 0} onClick={() => setPick("natures")}>{q.natures.length === 1 ? NATURE_LABEL[q.natures[0]] : q.natures.length ? `Natureza (${q.natures.length})` : "Natureza"}</FilterChip>
           <FilterChip on={q.status !== "all"} onClick={() => setPick("status")}>{q.status === "all" ? "Situação" : STATUS_LABEL[q.status]}</FilterChip>
         </div>
         <label class="rep-search">
@@ -373,7 +385,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
       </section>
 
       {pick === "period" && <PeriodSheet from={from} to={to} onDone={(a, b) => { set({ from: a, to: b, focus: undefined }); setPick(null); }} onClose={() => setPick(null)} />}
-      {pick === "flow" && <ChoiceSheet title="Tipo" value={q.flow} options={(["expense", "income", "both"] as Flow[]).map((k) => ({ id: k, label: FLOW_LABEL[k] }))} onPick={(v) => { set({ flow: v as Flow, cats: [] }); setPick(null); }} onClose={() => setPick(null)} />}
+      {pick === "flow" && <ChoiceSheet title="Receita ou despesa?" value={q.flow} options={(["expense", "income", "both"] as Flow[]).map((k) => ({ id: k, label: FLOW_LABEL[k] }))} onPick={(v) => { set({ flow: v as Flow, cats: [] }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "status" && <ChoiceSheet title="Situação" value={q.status} options={(["all", "done", "planned"] as Status[]).map((k) => ({ id: k, label: STATUS_LABEL[k] }))} onPick={(v) => { set({ status: v as Status }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "cats" && <MultiSheet title="Categorias" value={q.cats} onDone={(v) => { set({ cats: v }); setPick(null); }} onClose={() => setPick(null)}
         options={data.categories.filter((c) => q.flow === "both" || c.type === q.flow).map((c) => ({ id: c.id, label: c.name, icon: <span class={`avatar ${colorOf(c)}`}>{c.emoji}</span>, sub: c.archived ? "arquivada" : q.flow === "both" ? (c.type === "income" ? "receita" : "despesa") : undefined }))} />}
@@ -423,9 +435,11 @@ function Quick({ store, onPick }: { store: Store; onPick: (p: Partial<Query>) =>
   const { data } = store;
   const y = Number(yearOf(cur()));
   const yr = (n: number): [string, string] => [`${n}-01`, `${n}-12`];
-  const items: { label: string; sub: string; icon: "trend" | "tag" | "home" | "car" | "down" | "calendar"; q: Partial<Query> }[] = [
-    { label: `Previsto até o fim de ${y}`, sub: `o que ainda falta pagar até dez/${String(y).slice(2)}`, icon: "calendar", q: { ...EMPTY, from: cur(), to: `${y}-12`, status: "planned", group: "month" } },
-    { label: `Previsto para ${y + 1}`, sub: "despesas do próximo ano, por mês", icon: "trend", q: { ...EMPTY, from: yr(y + 1)[0], to: yr(y + 1)[1], group: "month" } },
+  const items: { label: string; sub: string; icon: "trend" | "tag" | "home" | "car" | "down" | "up" | "calendar"; q: Partial<Query> }[] = [
+    { label: `Despesas até o fim de ${y}`, sub: `falta pagar até dez/${String(y).slice(2)}`, icon: "up", q: { ...EMPTY, from: cur(), to: `${y}-12`, status: "planned", group: "month" } },
+    { label: `Receitas até o fim de ${y}`, sub: `falta receber até dez/${String(y).slice(2)}`, icon: "down", q: { ...EMPTY, flow: "income", from: cur(), to: `${y}-12`, status: "planned", group: "month" } },
+    { label: `Despesas previstas ${y + 1}`, sub: "próximo ano, por mês", icon: "up", q: { ...EMPTY, from: yr(y + 1)[0], to: yr(y + 1)[1], group: "month" } },
+    { label: `Receitas previstas ${y + 1}`, sub: "próximo ano, por mês", icon: "down", q: { ...EMPTY, flow: "income", from: yr(y + 1)[0], to: yr(y + 1)[1], group: "month" } },
     { label: `${y} por categoria`, sub: "despesas deste ano", icon: "tag", q: { ...EMPTY, from: yr(y)[0], to: yr(y)[1], group: "category" } },
     { label: "Mês passado por categoria", sub: monthLong(addMonths(cur(), -1)), icon: "calendar", q: { ...EMPTY, from: addMonths(cur(), -1), to: addMonths(cur(), -1), group: "category" } },
     ...(data.vehicles.length ? [{ label: `Veículos em ${y}`, sub: "custo de cada veículo", icon: "car" as const, q: { ...EMPTY, from: yr(y)[0], to: yr(y)[1], group: "vehicle" as const, vehs: data.vehicles.map((v) => v.id) } }] : []),
