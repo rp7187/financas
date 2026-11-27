@@ -39,6 +39,7 @@ const PRESETS: { id: string; label: string; range: () => [string, string] }[] = 
 const EMPTY: Omit<Query, "from" | "to"> = { flow: "expense", status: "all", text: "", estimate: true, group: "category", cats: [], accs: [], props: [], vehs: [], natures: [] };
 const fresh = (): Query => { const [from, to] = PRESETS[2].range(); return { ...EMPTY, from, to }; };
 let remembered: Query | null = null; // a consulta continua ao trocar de aba
+let rememberedHistory: Query[] = []; // passos anteriores (para "Voltar")
 
 const FLOW_LABEL: Record<Flow, string> = { expense: "Despesas", income: "Receitas", both: "Receitas e despesas" };
 const STATUS_LABEL: Record<Status, string> = { all: "Realizado e previsto", done: "Só realizado", planned: "Só previsto" };
@@ -95,7 +96,14 @@ const valueOf = (q: Query, r: Row) => (q.flow === "both" ? signed(r) : r.txn.amo
 export function Reports({ store, top }: { store: Store; top?: ComponentChildren }) {
   const { data } = store;
   const [q, setQ] = useState<Query>(remembered ?? fresh());
-  const set = (p: Partial<Query>) => setQ((old) => { const n = { ...old, ...p }; remembered = n; return n; });
+  const [history, setHistoryState] = useState<Query[]>(rememberedHistory);
+  const setHistory = (h: Query[]) => { rememberedHistory = h; setHistoryState(h); };
+  /** Muda a consulta; por padrão guarda o passo anterior para o "Voltar" (a digitação na busca não guarda). */
+  const set = (p: Partial<Query>, push = true) => {
+    if (push) setHistory([...history, q].slice(-30));
+    const n = { ...q, ...p }; remembered = n; setQ(n); setLimit(60);
+  };
+  const back = () => { const prev = history[history.length - 1]; if (!prev) return; setHistory(history.slice(0, -1)); remembered = prev; setQ(prev); setLimit(60); };
   const [pick, setPick] = useState<null | "flow" | "status" | "cats" | "accs" | "props" | "vehs" | "natures" | "period">(null);
   const [limit, setLimit] = useState(60);
   const [msg, setMsg] = useState<string | null>(null);
@@ -140,16 +148,25 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
     .map(([k, v]) => ({ k, v, ...describe(data, q.group, k) }))
     .sort((a, b) => (q.group === "month" ? a.k.localeCompare(b.k) : Math.abs(b.v) - Math.abs(a.v)));
   const groupMax = Math.max(1, ...groupRows.map((g) => Math.abs(g.v)));
+  /** Tocar num grupo filtra por ele; tocar de novo no grupo já filtrado desfaz (volta ao passo anterior). */
   const drill = (k: string) => {
     if (k === "~est") return;
-    if (q.group === "category") set({ cats: [k] });
-    if (q.group === "month") set({ from: k, to: k });
-    if (q.group === "account") set({ accs: [k] });
-    if (q.group === "property") set({ props: [k] });
-    if (q.group === "vehicle") set({ vehs: [k] });
-    if (q.group === "nature") set({ natures: [k as Nature] });
-    setLimit(60);
+    const only = (l: string[]) => l.length === 1 && l[0] === k;
+    const undo = (p: Partial<Query>) => (history.length ? back() : set(p));
+    if (q.group === "category") return only(q.cats) ? undo({ cats: [] }) : set({ cats: [k] });
+    if (q.group === "month") return from === k && to === k ? undo({ from: PRESETS[2].range()[0], to: PRESETS[2].range()[1] }) : set({ from: k, to: k });
+    if (q.group === "account") return only(q.accs) ? undo({ accs: [] }) : set({ accs: [k] });
+    if (q.group === "property") return only(q.props) ? undo({ props: [] }) : set({ props: [k] });
+    if (q.group === "vehicle") return only(q.vehs) ? undo({ vehs: [] }) : set({ vehs: [k] });
+    if (q.group === "nature") return only(q.natures) ? undo({ natures: [] }) : set({ natures: [k as Nature] });
   };
+  const isDrilled = (k: string) =>
+    q.group === "category" ? q.cats.length === 1 && q.cats[0] === k
+    : q.group === "month" ? from === k && to === k
+    : q.group === "account" ? q.accs.length === 1 && q.accs[0] === k
+    : q.group === "property" ? q.props.length === 1 && q.props[0] === k
+    : q.group === "vehicle" ? q.vehs.length === 1 && q.vehs[0] === k
+    : q.natures.length === 1 && q.natures[0] === k;
   const groupsAvail: Group[] = ["category", "month", "account", "nature", ...(data.properties.length ? ["property" as const] : []), ...(data.vehicles.length ? ["vehicle" as const] : [])];
 
   // a estimativa entra no total, mas não na lista (uma linha por mês só polui)
@@ -198,7 +215,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         <div class="chips scroll rep-periods" role="group" aria-label="Período">
           {PRESETS.map((p) => (
             <button key={p.id} type="button" class={`chip ${preset?.id === p.id ? "on" : ""}`} aria-pressed={preset?.id === p.id}
-              onClick={() => { const [a, b] = p.range(); set({ from: a, to: b }); setLimit(60); }}>{p.label}</button>
+              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to) set({ from: a, to: b }); }}>{p.label}</button>
           ))}
           <button type="button" class={`chip ${!preset ? "on" : ""}`} onClick={() => setPick("period")}><Icon name="calendar" />{preset ? "Escolher meses" : rangeLabel(from, to)}</button>
         </div>
@@ -213,15 +230,31 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         </div>
         <label class="rep-search">
           <Icon name="search" />
-          <input type="search" value={q.text} placeholder="Buscar na descrição (ex.: gasolina)" onInput={(e) => { set({ text: e.currentTarget.value }); setLimit(60); }} />
+          <input type="search" value={q.text} placeholder="Buscar na descrição (ex.: gasolina)" onInput={(e) => { const v = e.currentTarget.value; set({ text: v }, !q.text && !!v); }} />
         </label>
-        {(active || q.flow !== "expense") && (
-          <button type="button" class="link" onClick={() => { set({ ...EMPTY, from: q.from, to: q.to, group: q.group }); setLimit(60); }}>Limpar filtros</button>
-        )}
       </section>
 
+      {/* ---------- Caminho: voltar, filtros ativos (× remove) e limpar tudo ---------- */}
+      {(history.length > 0 || active || q.flow !== "expense") && (
+        <div class="rep-trail">
+          {history.length > 0 && <button type="button" class="trail-back" onClick={back}><Icon name="chevL" />Voltar</button>}
+          <div class="trail-tokens">
+            <span class="token period">{rangeLabel(from, to)}</span>
+            {q.flow !== "expense" && <Token onRemove={() => set({ flow: "expense", cats: [] })}>{FLOW_LABEL[q.flow]}</Token>}
+            {q.cats.map((id) => <Token key={id} onRemove={() => set({ cats: q.cats.filter((x) => x !== id) })}>{data.categories.find((c) => c.id === id)?.name ?? "Sem categoria"}</Token>)}
+            {q.accs.map((id) => <Token key={id} onRemove={() => set({ accs: q.accs.filter((x) => x !== id) })}>{data.accounts.find((a) => a.id === id)?.name ?? "?"}</Token>)}
+            {q.props.map((id) => <Token key={id} onRemove={() => set({ props: q.props.filter((x) => x !== id) })}>{data.properties.find((p) => p.id === id)?.name ?? "Sem imóvel"}</Token>)}
+            {q.vehs.map((id) => <Token key={id} onRemove={() => set({ vehs: q.vehs.filter((x) => x !== id) })}>{data.vehicles.find((v) => v.id === id)?.name ?? "Sem veículo"}</Token>)}
+            {q.natures.map((k) => <Token key={k} onRemove={() => set({ natures: q.natures.filter((x) => x !== k) })}>{NATURE_LABEL[k]}</Token>)}
+            {q.status !== "all" && <Token onRemove={() => set({ status: "all" })}>{STATUS_LABEL[q.status]}</Token>}
+            {q.text.trim() && <Token onRemove={() => set({ text: "" })}>“{q.text.trim()}”</Token>}
+          </div>
+          <button type="button" class="link trail-clear" onClick={() => { setHistory([]); const n = { ...fresh(), group: q.group }; remembered = n; setQ(n); setLimit(60); }}>Limpar tudo</button>
+        </div>
+      )}
+
       {/* ---------- Consultas rápidas ---------- */}
-      {!active && <Quick store={store} onPick={(p) => { set(p); setLimit(60); }} />}
+      {!active && <Quick store={store} onPick={(p) => set(p)} />}
 
       {/* ---------- Resultado ---------- */}
       <section class="card rep-result">
@@ -252,7 +285,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
             {byMonth.map((b) => {
               const h = (v: number) => `${(Math.abs(v) / barMax) * 100}%`;
               return (
-                <button key={b.m} type="button" class="rep-bar" title={`${monthShort(b.m)}: ${money(Math.abs(b.done + b.planned))}`} onClick={() => { set({ from: b.m, to: b.m }); setLimit(60); }}>
+                <button key={b.m} type="button" class="rep-bar" title={`${monthShort(b.m)}: ${money(Math.abs(b.done + b.planned))}`} onClick={() => (from === b.m && to === b.m ? back() : set({ from: b.m, to: b.m }))}>
                   <span class="rep-bar-track">
                     <i class={`planned ${sign && b.done + b.planned < 0 ? "neg" : ""}`} style={{ height: h(b.planned) }} />
                     <i class={`done ${sign && b.done + b.planned < 0 ? "neg" : ""}`} style={{ height: h(b.done) }} />
@@ -271,18 +304,21 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
           <CardHead icon="layers" tone="brand" title="Agrupar por" />
           <div class="chips scroll rep-group-chips">
             {groupsAvail.map((g) => (
-              <button key={g} type="button" class={`chip ${q.group === g ? "on" : ""}`} aria-pressed={q.group === g} onClick={() => set({ group: g })}>{GROUP_LABEL[g]}</button>
+              <button key={g} type="button" class={`chip ${q.group === g ? "on" : ""}`} aria-pressed={q.group === g} onClick={() => set({ group: g }, false)}>{GROUP_LABEL[g]}</button>
             ))}
           </div>
           <ul class="rank rep-groups">
             {groupRows.map((g) => (
-              <li key={g.k} class={g.k === "~est" ? "" : "rank-tap"} role={g.k === "~est" ? undefined : "button"} tabIndex={g.k === "~est" ? undefined : 0}
+              <li key={g.k} class={`${g.k === "~est" ? "" : "rank-tap"} ${isDrilled(g.k) ? "drilled" : ""}`} role={g.k === "~est" ? undefined : "button"} tabIndex={g.k === "~est" ? undefined : 0}
                 onClick={() => drill(g.k)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); drill(g.k); } }}>
                 {g.icon}
                 <div class="rank-main">
                   <div class="rank-top"><span class="name">{g.label}</span><b class="num">{sign ? signedMoney(g.v) : money(g.v)}</b></div>
                   <div class="hbar"><div class={`fill ${g.color}`} style={{ width: `${(Math.abs(g.v) / groupMax) * 100}%` }} /></div>
-                  {!sign && total > 0 && <div class="rank-meta"><span>{Math.round((g.v / total) * 100)}%</span></div>}
+                  <div class="rank-meta">
+                    <span>{!sign && total > 0 ? `${Math.round((g.v / total) * 100)}%` : ""}</span>
+                    {isDrilled(g.k) && <span class="drill-x">tocar de novo desfaz ✕</span>}
+                  </div>
                 </div>
               </li>
             ))}
@@ -323,7 +359,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         {list.length > limit && <button type="button" class="btn ghost wide" onClick={() => setLimit(limit + 100)}>Mostrar mais ({list.length - limit})</button>}
       </section>
 
-      {pick === "period" && <PeriodSheet from={from} to={to} onDone={(a, b) => { set({ from: a, to: b }); setLimit(60); setPick(null); }} onClose={() => setPick(null)} />}
+      {pick === "period" && <PeriodSheet from={from} to={to} onDone={(a, b) => { set({ from: a, to: b }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "flow" && <ChoiceSheet title="Tipo" value={q.flow} options={(["expense", "income", "both"] as Flow[]).map((k) => ({ id: k, label: FLOW_LABEL[k] }))} onPick={(v) => { set({ flow: v as Flow, cats: [] }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "status" && <ChoiceSheet title="Situação" value={q.status} options={(["all", "done", "planned"] as Status[]).map((k) => ({ id: k, label: STATUS_LABEL[k] }))} onPick={(v) => { set({ status: v as Status }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "cats" && <MultiSheet title="Categorias" value={q.cats} onDone={(v) => { set({ cats: v }); setPick(null); }} onClose={() => setPick(null)}
@@ -359,6 +395,10 @@ function Compare({ v, pct, flow }: { v: number; pct: number; flow: Flow }) {
   if (Math.abs(v) < 1) return <span class="delta flat">= igual</span>;
   const good = flow === "expense" ? v < 0 : v > 0;
   return <span class={`delta ${good ? "good" : "bad"}`}>{v > 0 ? "▲" : "▼"} {money(Math.abs(v))} ({Math.abs(pct)}%)</span>;
+}
+
+function Token({ onRemove, children }: { onRemove: () => void; children: ComponentChildren }) {
+  return <button type="button" class="token" onClick={onRemove} aria-label="Remover filtro">{children}<span aria-hidden="true">✕</span></button>;
 }
 
 function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ComponentChildren }) {
