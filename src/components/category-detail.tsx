@@ -1,6 +1,6 @@
 import type { Store } from "../app";
 import { dayMonth, monthLong } from "../dates";
-import type { Item } from "../engine";
+import type { Data, Item } from "../engine";
 import { PROPERTY_KIND, VEHICLE_KIND, colorOf, money } from "../model";
 import { Sheet } from "./sheet";
 
@@ -55,6 +55,7 @@ export function CategoryDetail({ store, categoryId, propertyId, vehicleId, items
                     </span>
                     <span class="right">
                       <span class={`amount num ${t.type}`}>{sign}{money(t.amount)}</span>
+                      <AssetTags data={data} t={t} skip={propertyId ?? vehicleId} />
                       {it.virtual ? <span class="pill">previsto</span> : !t.paid && !data.cards.has(t.accountId) ? <span class="pill">pendente</span> : null}
                     </span>
                   </button>
@@ -66,5 +67,18 @@ export function CategoryDetail({ store, categoryId, propertyId, vehicleId, items
       ))}
       {!list.length && <p class="muted small">Nenhum lançamento no período.</p>}
     </Sheet>
+  );
+}
+
+/** Etiquetas do imóvel e do veículo do lançamento (a do próprio detalhe aberto é omitida). */
+export function AssetTags({ data, t, skip }: { data: Data; t: { propertyId?: string; vehicleId?: string }; skip?: string }) {
+  const p = t.propertyId && t.propertyId !== skip ? data.properties.find((x) => x.id === t.propertyId) : undefined;
+  const v = t.vehicleId && t.vehicleId !== skip ? data.vehicles.find((x) => x.id === t.vehicleId) : undefined;
+  if (!p && !v) return null;
+  return (
+    <span class="asset-tags">
+      {p && <span class="pill prop">{PROPERTY_KIND[p.kind].emoji} {p.name}</span>}
+      {v && <span class="pill prop">{VEHICLE_KIND[v.kind].emoji} {v.name}</span>}
+    </span>
   );
 }

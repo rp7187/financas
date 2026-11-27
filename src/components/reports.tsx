@@ -9,6 +9,7 @@ import { AccountBadge, Icon } from "./icons";
 import { PageHead } from "./page-head";
 import { Sheet } from "./sheet";
 import { CardHead } from "./stats";
+import { AssetTags } from "./category-detail";
 
 /*
  * Relatórios: uma consulta = período + filtros. O resultado mostra total, comparação com o período anterior,
@@ -311,6 +312,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
                   </span>
                   <span class="right">
                     <span class={`amount num ${t.type}`}>{t.type === "income" ? "+" : "−"}{money(t.amount)}</span>
+                    <AssetTags data={data} t={t} />
                     {r.planned && <span class="pill">previsto</span>}
                   </span>
                 </button>
