@@ -94,9 +94,12 @@ function niceRange(lo: number, hi: number): number[] {
  * alinhados pelo mesmo eixo de meses — sem eixo duplo. Toque num mês destaca a coluna nos dois.
  */
 export function FlowBalanceChart({ rows, current }: { rows: FlowRow[]; current: string }) {
-  const initial = Math.max(0, rows.findIndex((r) => r.month === current));
-  const [sel, setSel] = useState<number>(rows.some((r) => r.month === current) ? initial : rows.length - 1);
-  const s = rows[Math.min(sel, rows.length - 1)];
+  // nenhum mês selecionado = visão do período todo; tocar num mês mostra ele, tocar de novo volta ao todo
+  const [selRaw, setSel] = useState<number | null>(null);
+  const sel = selRaw !== null && selRaw < rows.length ? selRaw : null;
+  const toggle = (i: number) => setSel(sel === i ? null : i);
+  const last = rows[rows.length - 1];
+  const s = sel !== null ? rows[sel] : { month: "", income: rows.reduce((a, r) => a + r.income, 0), expense: rows.reduce((a, r) => a + r.expense, 0), balance: last.balance };
   const W = 340, left = 40, right = 8;
   const top1 = 28, h1 = 86, gapY = 42, h2 = 76, bottomPad = 20;
   const top2 = top1 + h1 + gapY;
@@ -124,18 +127,25 @@ export function FlowBalanceChart({ rows, current }: { rows: FlowRow[]; current: 
   return (
     <figure class="chart flow">
       <div class="flow-detail" aria-live="polite">
-        <span class="fd-month">{monthLong(s.month)}{s.month > current ? " · previsto" : s.month === current ? " · em andamento" : ""}</span>
+        <span class="fd-month">
+          {sel === null
+            ? <>Período todo · {monthShort(rows[0].month)} – {monthShort(last.month)}</>
+            : <>{monthLong(s.month)}{s.month > current ? " · previsto" : s.month === current ? " · em andamento" : ""}</>}
+          {sel !== null
+            ? <button type="button" class="fd-close" onClick={() => setSel(null)}>ver período todo ✕</button>
+            : <small class="fd-hint">toque num mês para ver só ele</small>}
+        </span>
         <div class="fd-grid">
           <span><i class="sw income" />Receitas<b class="num">{money(s.income)}</b></span>
           <span><i class="sw expense" />Despesas<b class="num">{money(s.expense)}</b></span>
           <span>Resultado<b class={`num ${net < 0 ? "expense" : "income"}`}>{net >= 0 ? "+" : "−"}{money(Math.abs(net))}</b></span>
-          <span><i class="sw line" />Saldo no fim<b class="num">{money(s.balance)}</b></span>
+          <span><i class="sw line" />{sel === null ? `Saldo em ${monthShort(last.month)}` : "Saldo no fim"}<b class="num">{money(s.balance)}</b></span>
         </div>
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} role="img"
         aria-label={rows.map((r) => `${monthShort(r.month)}: receitas ${money(r.income)}, despesas ${money(r.expense)}, saldo no fim ${money(r.balance)}`).join("; ")}>
         {/* coluna selecionada */}
-        <rect x={left + sel * slot + 1} y={top1 - 8} width={slot - 2} height={H - bottomPad - top1 + 8} rx={8} class="sel-band" />
+        {sel !== null && <rect x={left + sel * slot + 1} y={top1 - 8} width={slot - 2} height={H - bottomPad - top1 + 8} rx={8} class="sel-band" />}
 
         {/* painel 1 */}
         <text x={4} y={top1 - 16} class="panel-title">Receitas × despesas</text>
@@ -168,7 +178,7 @@ export function FlowBalanceChart({ rows, current }: { rows: FlowRow[]; current: 
 
         {/* eixo de meses + áreas de toque */}
         {rows.map((r, i) => (
-          <g key={`x${r.month}`} class="hit" onClick={() => setSel(i)}>
+          <g key={`x${r.month}`} class="hit" onClick={() => toggle(i)}>
             <rect x={left + i * slot} y={0} width={slot} height={H} fill="transparent" />
             {(rows.length <= 6 || i % 2 === (rows.length - 1) % 2) && (
               <text x={cx(i)} y={H - 5} class={`tick ${r.month === current ? "now" : ""} ${i === sel ? "selx" : ""}`} text-anchor="middle">{monthShort(r.month).slice(0, 3)}</text>

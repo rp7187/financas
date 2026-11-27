@@ -23,6 +23,8 @@ type Group = "category" | "month" | "account" | "property" | "vehicle" | "nature
 export type Query = {
   from: string; to: string; flow: Flow; status: Status; text: string; estimate: boolean; group: Group;
   cats: string[]; accs: string[]; props: string[]; vehs: string[]; natures: Nature[];
+  /** mês em destaque dentro do período (tocar de novo desfaz) */
+  focus?: string;
 };
 
 const cur = () => thisMonth();
@@ -36,7 +38,7 @@ const PRESETS: { id: string; label: string; range: () => [string, string] }[] = 
   { id: "12m", label: "Últimos 12 meses", range: () => [addMonths(cur(), -11), cur()] },
 ];
 
-const EMPTY: Omit<Query, "from" | "to"> = { flow: "expense", status: "all", text: "", estimate: true, group: "category", cats: [], accs: [], props: [], vehs: [], natures: [] };
+const EMPTY: Omit<Query, "from" | "to"> = { flow: "expense", status: "all", text: "", estimate: true, group: "category", cats: [], accs: [], props: [], vehs: [], natures: [], focus: undefined };
 const fresh = (): Query => { const [from, to] = PRESETS[2].range(); return { ...EMPTY, from, to }; };
 let remembered: Query | null = null; // a consulta continua ao trocar de aba
 let rememberedHistory: Query[] = []; // passos anteriores (para "Voltar")
@@ -111,13 +113,18 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
   const from = q.from <= q.to ? q.from : q.to;
   const to = q.from <= q.to ? q.to : q.from;
   const ms = months(from, to);
-  const rows = runQuery(data, q, from, to);
+  const allRows = runQuery(data, q, from, to);
+  const focus = q.focus && q.focus >= from && q.focus <= to ? q.focus : undefined;
+  const rows = focus ? allRows.filter((r) => r.txn.date.slice(0, 7) === focus) : allRows;
   const total = rows.reduce((s, r) => s + valueOf(q, r), 0);
   const income = rows.filter((r) => r.txn.type === "income").reduce((s, r) => s + r.txn.amount, 0);
   const expense = rows.filter((r) => r.txn.type === "expense").reduce((s, r) => s + r.txn.amount, 0);
   const plannedSum = rows.filter((r) => r.planned).reduce((s, r) => s + valueOf(q, r), 0);
-  const len = ms.length;
-  const prevRows = runQuery(data, q, addMonths(from, -len), addMonths(to, -len));
+  const len = focus ? 1 : ms.length;
+  const prevRows = focus ? runQuery(data, q, addMonths(focus, -1), addMonths(focus, -1)) : runQuery(data, q, addMonths(from, -len), addMonths(to, -len));
+  const label = focus ? monthLong(focus) : rangeLabel(from, to);
+  const prevLabel = focus ? monthLong(addMonths(focus, -1)) : rangeLabel(addMonths(from, -len), addMonths(to, -len));
+  const toggleFocus = (m: string) => set({ focus: focus === m ? undefined : m }, false);
   const prevTotal = prevRows.reduce((s, r) => s + valueOf(q, r), 0);
   const preset = PRESETS.find((p) => { const [a, b] = p.range(); return a === from && b === to; });
   const hasFuture = to >= cur();
@@ -125,7 +132,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
 
   // barras por mês: realizado × previsto (em "receitas e despesas", o resultado do mês)
   const byMonth = ms.map((m) => {
-    const rs = rows.filter((r) => r.txn.date.slice(0, 7) === m);
+    const rs = allRows.filter((r) => r.txn.date.slice(0, 7) === m);
     return { m, done: rs.filter((r) => !r.planned).reduce((s, r) => s + valueOf(q, r), 0), planned: rs.filter((r) => r.planned).reduce((s, r) => s + valueOf(q, r), 0) };
   });
   const barMax = Math.max(1, ...byMonth.map((b) => Math.abs(b.done + b.planned)));
@@ -154,7 +161,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
     const only = (l: string[]) => l.length === 1 && l[0] === k;
     const undo = (p: Partial<Query>) => (history.length ? back() : set(p));
     if (q.group === "category") return only(q.cats) ? undo({ cats: [] }) : set({ cats: [k] });
-    if (q.group === "month") return from === k && to === k ? undo({ from: PRESETS[2].range()[0], to: PRESETS[2].range()[1] }) : set({ from: k, to: k });
+    if (q.group === "month") return ms.length > 1 ? toggleFocus(k) : undefined;
     if (q.group === "account") return only(q.accs) ? undo({ accs: [] }) : set({ accs: [k] });
     if (q.group === "property") return only(q.props) ? undo({ props: [] }) : set({ props: [k] });
     if (q.group === "vehicle") return only(q.vehs) ? undo({ vehs: [] }) : set({ vehs: [k] });
@@ -162,7 +169,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
   };
   const isDrilled = (k: string) =>
     q.group === "category" ? q.cats.length === 1 && q.cats[0] === k
-    : q.group === "month" ? from === k && to === k
+    : q.group === "month" ? focus === k
     : q.group === "account" ? q.accs.length === 1 && q.accs[0] === k
     : q.group === "property" ? q.props.length === 1 && q.props[0] === k
     : q.group === "vehicle" ? q.vehs.length === 1 && q.vehs[0] === k
@@ -215,7 +222,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         <div class="chips scroll rep-periods" role="group" aria-label="Período">
           {PRESETS.map((p) => (
             <button key={p.id} type="button" class={`chip ${preset?.id === p.id ? "on" : ""}`} aria-pressed={preset?.id === p.id}
-              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to) set({ from: a, to: b }); }}>{p.label}</button>
+              onClick={() => { const [a, b] = p.range(); if (a !== from || b !== to || focus) set({ from: a, to: b, focus: undefined }); }}>{p.label}</button>
           ))}
           <button type="button" class={`chip ${!preset ? "on" : ""}`} onClick={() => setPick("period")}><Icon name="calendar" />{preset ? "Escolher meses" : rangeLabel(from, to)}</button>
         </div>
@@ -235,11 +242,12 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
       </section>
 
       {/* ---------- Caminho: voltar, filtros ativos (× remove) e limpar tudo ---------- */}
-      {(history.length > 0 || active || q.flow !== "expense") && (
+      {(history.length > 0 || active || !!focus || q.flow !== "expense") && (
         <div class="rep-trail">
           {history.length > 0 && <button type="button" class="trail-back" onClick={back}><Icon name="chevL" />Voltar</button>}
           <div class="trail-tokens">
             <span class="token period">{rangeLabel(from, to)}</span>
+            {focus && <Token onRemove={() => toggleFocus(focus)}>{monthLong(focus)}</Token>}
             {q.flow !== "expense" && <Token onRemove={() => set({ flow: "expense", cats: [] })}>{FLOW_LABEL[q.flow]}</Token>}
             {q.cats.map((id) => <Token key={id} onRemove={() => set({ cats: q.cats.filter((x) => x !== id) })}>{data.categories.find((c) => c.id === id)?.name ?? "Sem categoria"}</Token>)}
             {q.accs.map((id) => <Token key={id} onRemove={() => set({ accs: q.accs.filter((x) => x !== id) })}>{data.accounts.find((a) => a.id === id)?.name ?? "?"}</Token>)}
@@ -258,7 +266,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
 
       {/* ---------- Resultado ---------- */}
       <section class="card rep-result">
-        <p class="rep-label">{FLOW_LABEL[q.flow]} · {rangeLabel(from, to)}</p>
+        <p class="rep-label">{FLOW_LABEL[q.flow]} · {label}{focus && <button type="button" class="fd-close rep-unfocus" onClick={() => toggleFocus(focus)}>ver {rangeLabel(from, to).replace("Ano de ", "")} todo ✕</button>}</p>
         <div class="rep-total num">{sign ? signedMoney(total) : money(total)}</div>
         <p class="rep-sub">
           {realCount} lançamento{realCount === 1 ? "" : "s"}
@@ -270,7 +278,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         )}
         {prevTotal !== 0 && (
           <p class="rep-sub">
-            <Compare v={total - prevTotal} pct={Math.round(((total - prevTotal) / Math.abs(prevTotal)) * 100)} flow={q.flow} /> vs {rangeLabel(addMonths(from, -len), addMonths(to, -len))} ({sign ? signedMoney(prevTotal) : money(prevTotal)})
+            <Compare v={total - prevTotal} pct={Math.round(((total - prevTotal) / Math.abs(prevTotal)) * 100)} flow={q.flow} /> vs {prevLabel} ({sign ? signedMoney(prevTotal) : money(prevTotal)})
           </p>
         )}
         {hasFuture && q.flow !== "income" && !filtersOn(q) && (
@@ -280,12 +288,12 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
           </label>
         )}
 
-        {len > 1 && (
-          <div class="rep-bars" role="img" aria-label="Valores por mês">
+        {ms.length > 1 && (
+          <div class={`rep-bars ${focus ? "focused" : ""}`} role="img" aria-label="Valores por mês">
             {byMonth.map((b) => {
               const h = (v: number) => `${(Math.abs(v) / barMax) * 100}%`;
               return (
-                <button key={b.m} type="button" class="rep-bar" title={`${monthShort(b.m)}: ${money(Math.abs(b.done + b.planned))}`} onClick={() => (from === b.m && to === b.m ? back() : set({ from: b.m, to: b.m }))}>
+                <button key={b.m} type="button" class={`rep-bar ${focus === b.m ? "on" : ""}`} aria-pressed={focus === b.m} title={`${monthShort(b.m)}: ${money(Math.abs(b.done + b.planned))}`} onClick={() => toggleFocus(b.m)}>
                   <span class="rep-bar-track">
                     <i class={`planned ${sign && b.done + b.planned < 0 ? "neg" : ""}`} style={{ height: h(b.planned) }} />
                     <i class={`done ${sign && b.done + b.planned < 0 ? "neg" : ""}`} style={{ height: h(b.done) }} />
@@ -296,7 +304,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
             })}
           </div>
         )}
-        {len > 1 && <p class="muted small rep-legend"><i class="sw done" /> realizado <i class="sw planned" /> previsto · toque num mês para ver só ele</p>}
+        {ms.length > 1 && <p class="muted small rep-legend"><i class="sw done" /> realizado <i class="sw planned" /> previsto · {focus ? "toque de novo no mês para ver o período todo" : "toque num mês para ver só ele"}</p>}
       </section>
 
       {rows.length > 0 && (
@@ -359,7 +367,7 @@ export function Reports({ store, top }: { store: Store; top?: ComponentChildren 
         {list.length > limit && <button type="button" class="btn ghost wide" onClick={() => setLimit(limit + 100)}>Mostrar mais ({list.length - limit})</button>}
       </section>
 
-      {pick === "period" && <PeriodSheet from={from} to={to} onDone={(a, b) => { set({ from: a, to: b }); setPick(null); }} onClose={() => setPick(null)} />}
+      {pick === "period" && <PeriodSheet from={from} to={to} onDone={(a, b) => { set({ from: a, to: b, focus: undefined }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "flow" && <ChoiceSheet title="Tipo" value={q.flow} options={(["expense", "income", "both"] as Flow[]).map((k) => ({ id: k, label: FLOW_LABEL[k] }))} onPick={(v) => { set({ flow: v as Flow, cats: [] }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "status" && <ChoiceSheet title="Situação" value={q.status} options={(["all", "done", "planned"] as Status[]).map((k) => ({ id: k, label: STATUS_LABEL[k] }))} onPick={(v) => { set({ status: v as Status }); setPick(null); }} onClose={() => setPick(null)} />}
       {pick === "cats" && <MultiSheet title="Categorias" value={q.cats} onDone={(v) => { set({ cats: v }); setPick(null); }} onClose={() => setPick(null)}
