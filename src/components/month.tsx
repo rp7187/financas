@@ -194,7 +194,7 @@ export function MonthView({ store }: { store: Store }) {
           <button type="button" class="btn brand" onClick={() => store.openTxn({ draft: true })}><Icon name="plus" />Novo lançamento</button>
         </div>
       )}
-      {[...groups.entries()].map(([date, list]) => {
+      {[...groups.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([date, list]) => {
         // soma do dia: compras no cartão contam (é o gasto do dia), mesmo sem mexer no saldo em conta
         const net = list.reduce((s, it) => s + (acc || it.txn.type === "transfer" ? effect(it.txn, acc, data) : it.txn.type === "income" ? it.txn.amount : -it.txn.amount), 0);
         return (
