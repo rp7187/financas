@@ -1,7 +1,26 @@
-import { useEffect } from "preact/hooks";
+import { useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 
-/** Folha que sobe de baixo (formulários). */
+// Trava a rolagem da página de fundo enquanto houver folha aberta (no iPhone, overflow: hidden não basta).
+let openSheets = 0;
+let savedY = 0;
+function lockPage() {
+  if (openSheets++ > 0) return;
+  savedY = window.scrollY;
+  const b = document.body.style;
+  b.position = "fixed"; b.top = `-${savedY}px`; b.left = "0"; b.right = "0"; b.width = "100%";
+}
+function unlockPage() {
+  if (--openSheets > 0) return;
+  const b = document.body.style;
+  b.position = ""; b.top = ""; b.left = ""; b.right = ""; b.width = "";
+  window.scrollTo(0, savedY);
+}
+
+/**
+ * Folha que sobe de baixo (formulários e detalhes). Rola por dentro (a página de fundo fica parada);
+ * fecha tocando fora, no puxador, arrastando o puxador/título para baixo ou com Esc.
+ */
 export function Sheet({ title, onClose, onSubmit, actions, children }: {
   title: ComponentChildren;
   onClose: () => void;
@@ -14,11 +33,23 @@ export function Sheet({ title, onClose, onSubmit, actions, children }: {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
+  useEffect(() => { lockPage(); return unlockPage; }, []);
+
+  // arrastar para baixo pelo puxador/título fecha
+  const drag = useRef<{ y: number; active: boolean }>({ y: 0, active: false });
+  const [dy, setDy] = useState(0);
+  const start = (e: TouchEvent) => { drag.current = { y: e.touches[0].clientY, active: true }; };
+  const move = (e: TouchEvent) => { if (drag.current.active) setDy(Math.max(0, e.touches[0].clientY - drag.current.y)); };
+  const end = () => { if (!drag.current.active) return; drag.current.active = false; if (dy > 70) onClose(); else setDy(0); };
+
   return (
     <div class="sheet-backdrop" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div class="sheet-wrap" role="dialog" aria-modal="true" aria-labelledby="sheet-title">
+      <div class={`sheet-wrap ${dy ? "dragging" : ""}`} role="dialog" aria-modal="true" aria-labelledby="sheet-title" style={dy ? { transform: `translateY(${dy}px)` } : undefined}>
         <form class="sheet" onSubmit={onSubmit} noValidate>
-          <h2 id="sheet-title">{title}</h2>
+          <div class="sheet-top" onTouchStart={start} onTouchMove={move} onTouchEnd={end} onTouchCancel={end}>
+            <button type="button" class="sheet-handle" aria-label="Fechar" onClick={onClose} />
+            <h2 id="sheet-title">{title}</h2>
+          </div>
           {children}
           <div class="actions">{actions}</div>
         </form>
